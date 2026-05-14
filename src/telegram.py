@@ -33,18 +33,26 @@ def _format_story(idx: int, s: dict) -> str:
     title = _escape_md(s["title"])
     source = _escape_md(s["source"])
     hook = _escape_md(s.get("hook", "") or "(no hook generated)")
+    pivot = _escape_md(s.get("pivot", "") or "")
     angle = _escape_md(s.get("tech_angle", "") or "(no angle generated)")
+    payoff = _escape_md((s.get("payoff_structure", "") or "").upper())
     score = s.get("hook_score", 0)
     conf = s.get("llm_confidence", 0)
     url = s["url"]   # URLs go inside () in MD links, not escaped
 
-    return (
-        f"*{idx}\\. {title}*\n"
-        f"_{source} · score {score} · conf {conf}/10_\n\n"
-        f"🎬 *Hook:* {hook}\n"
-        f"💡 *Angle:* {angle}\n"
-        f"[Read]({url})"
-    )
+    parts = [
+        f"*{idx}\\. {title}*",
+        f"_{source} · score {score} · conf {conf}/10_",
+        "",
+        f"🎬 *Hook:* {hook}",
+    ]
+    if pivot:
+        parts.append(f"➡️ *Pivot:* {pivot}")
+    if payoff:
+        parts.append(f"🧩 *Structure:* {payoff}")
+    parts.append(f"💡 *Payoff:* {angle}")
+    parts.append(f"[Read]({url})")
+    return "\n".join(parts)
 
 
 def format_digest(stories: list[dict]) -> list[str]:
