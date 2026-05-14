@@ -15,6 +15,13 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
+# Auto-load .env file if present (no-op in GitHub Actions, which uses real env vars)
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 from src import fetcher, scorer, llm, telegram
 
 logging.basicConfig(
