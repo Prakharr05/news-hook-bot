@@ -12,67 +12,125 @@ from difflib import SequenceMatcher
 from typing import Any
 
 
-# Weighted keywords. The vibe: short, punchy, conflict/scale/secrecy.
-# These map to EZ-snippet-style hooks: scandal, scale, breakthrough, surprise.
+# Weighted keywords. Tuned for EZ Snippet-style editorial picks:
+#   1. Hidden cost / hidden mechanism  (commission, detection, algorithm)
+#   2. Indian-relevance through implication  (regulation, rules, bans)
+#   3. Platform vs user power dynamics  (purges, fees, lockouts)
+# AVOIDED: product launches, funding rounds, earnings — these score LOW now.
 HOOK_KEYWORDS: dict[str, int] = {
-    # Drama / conflict (highest hook value)
-    "lawsuit": 9, "sued": 9, "ban": 9, "banned": 9, "blocked": 8,
-    "leaked": 10, "leak": 9, "hacked": 10, "breach": 9, "scam": 9, "fraud": 9,
-    "arrested": 9, "fired": 8, "fires": 7, "layoff": 8, "layoffs": 8,
-    "outage": 8, "down": 5, "crashed": 7, "exposed": 8,
-    "scandal": 9, "controversy": 7, "backlash": 7, "accused": 7,
-    "recall": 8, "recalls": 8, "recalled": 7, "shutdown": 7, "shuts down": 7,
-    "warns": 5, "warning": 4, "killed": 7, "dies": 6, "crash": 6,
+    # ── TIER 1: Hidden mechanism / "how this actually works" ──
+    # These are gold — they unlock MECHANISM payoffs (Neeraj's #1 structure).
+    "detect": 9, "detection": 9, "detects": 8,
+    "algorithm": 8, "algorithms": 8, "ranking": 7, "moderation": 8,
+    "shadow ban": 10, "shadowban": 10, "shadow-ban": 10,
+    "throttle": 9, "throttled": 9, "rate limit": 8,
+    "fingerprint": 9, "fingerprinting": 9,
+    "behind the scenes": 8, "how it works": 7, "internally": 7,
+    "uncovered": 8, "investigation": 7, "exposed": 9, "exposes": 9,
+    "reverse engineer": 9, "reverse engineered": 9,
 
-    # Scale (numbers = instant hook)
-    "billion": 7, "million": 5, "trillion": 8,
-    "record": 6, "biggest": 6, "largest": 6, "first ever": 7,
-    "millions of": 8,
+    # ── TIER 1: Hidden cost / platform economics ──
+    # The Zomato 27% energy. Reveals what platforms take from users/SMBs.
+    "commission": 9, "commissions": 9, "takes a cut": 10,
+    "fees": 7, "fee": 6, "charges": 6, "hidden cost": 10,
+    "monetiz": 7, "paywall": 7, "subscription": 5,
+    "ad revenue": 7, "revenue share": 8, "creator payout": 8,
+    "deplatform": 9, "demonetiz": 9, "blocked from": 7,
+    "lockout": 8, "kicked off": 8, "locked out": 8,
 
-    # Bot / fake / spam (your example domain — keep high)
+    # ── TIER 1: Regulation / rule / policy (twist payoffs) ──
+    # Especially when from China, EU, or India — implications travel.
+    "new rule": 8, "new law": 8, "new regulation": 8,
+    "mandate": 7, "mandated": 7, "mandatory": 7,
+    "must register": 9, "required to": 6, "crackdown": 9,
+    "ruling": 7, "ruled": 6, "court": 6,
+    "regulation": 7, "regulator": 7, "regulators": 7,
+    "ftc": 7, "eu ": 6, "doj": 7, "sebi": 8, "rbi": 8, "trai": 8, "meity": 8,
+    "antitrust": 8, "compliance": 6,
+
+    # ── TIER 1: Bot / fake / spam (your example domain) ──
     "bots": 9, "bot": 7, "fake account": 9, "fake accounts": 9,
-    "deepfake": 9, "ai-generated": 6, "synthetic": 5,
-    "purge": 8, "purged": 8, "removes": 4, "deleted": 5,
+    "deepfake": 9, "ai-generated": 7, "synthetic": 6,
+    "purge": 9, "purged": 9, "removes": 5, "removed": 5, "deleted": 6,
+    "spam": 6, "scam": 8, "fraud": 8,
 
-    # AI / GenAI (highly relevant to your content style)
-    "gpt": 7, "openai": 7, "anthropic": 8, "claude": 7, "gemini": 7,
-    "llm": 6, "agent": 5, "agentic": 6, "open source": 5, "open-source": 5,
-    "release": 4, "launches": 4, "launched": 4, "unveils": 5,
-    "breakthrough": 8, "first": 5,
+    # ── TIER 2: Drama / conflict ──
+    "lawsuit": 8, "sued": 8, "ban": 8, "banned": 8, "blocked": 7,
+    "leaked": 9, "leak": 8, "hacked": 9, "breach": 9,
+    "fined": 8, "fine": 7, "penalty": 7,
+    "shutdown": 7, "shuts down": 7, "outage": 6, "down": 3,
+    "recall": 7, "recalls": 7, "recalled": 6,
+    "warning": 4, "warns": 5, "controversy": 6, "backlash": 6,
+    "scandal": 8, "accused": 6, "arrested": 7,
 
-    # Big Tech entities (modest weight — common terms)
-    "google": 4, "meta": 5, "apple": 4, "instagram": 6, "whatsapp": 6,
-    "youtube": 5, "tiktok": 7, "twitter": 6, "x ": 4, "facebook": 5,
-    "microsoft": 4, "nvidia": 6, "amazon": 4, "tesla": 5, "spacex": 5,
+    # ── TIER 2: Scale (numbers create instant hooks) ──
+    "billion": 6, "million": 4, "trillion": 7,
+    "crore": 7, "lakh": 6,    # Indian unit bonus
+    "record": 5, "biggest": 5, "largest": 5, "first ever": 6,
+    "millions of": 7, "thousands of": 5,
+    "percent": 4, "% of": 4,
 
-    # Policy / regulation
-    "regulation": 5, "regulator": 5, "ftc": 6, "eu ": 5, "doj": 6,
-    "antitrust": 7, "fine": 6, "fined": 6, "investigation": 6,
+    # ── TIER 3: Indian context (your audience) ──
+    # Heavier weight than before — local matters more than global to him.
+    "india": 7, "indian": 7, "indians": 7,
+    "upi": 8, "ola": 6, "uber": 5, "zomato": 8, "swiggy": 8,
+    "reliance": 6, "jio": 7, "paytm": 7, "phonepe": 7, "google pay": 6,
+    "byju": 7, "byjus": 7, "ed ": 5, "income tax": 6,
+    "nasscom": 6, "startup india": 6, "drhp": 6, "ipo": 5,
+    "mumbai": 4, "bengaluru": 4, "delhi": 4, "gurgaon": 4,
+    "rupee": 5, "rupees": 5, "inr": 4,
 
-    # Surprise / curiosity
-    "surprising": 6, "shocking": 7, "secret": 7, "hidden": 6,
-    "actually": 4, "turns out": 5, "revealed": 6,
+    # ── TIER 3: China (implication-source for India angle) ──
+    "china": 6, "chinese": 6, "beijing": 6, "tencent": 6, "bytedance": 7,
+    "shenzhen": 5, "wechat": 6,
 
-    # Indian context bonus (your audience)
-    "india": 5, "indian": 5, "upi": 6, "ola": 4, "zomato": 4, "swiggy": 4,
-    "reliance": 4, "jio": 5, "paytm": 5,
+    # ── TIER 3: Platforms users actually live on ──
+    "instagram": 8, "whatsapp": 8, "youtube": 7, "tiktok": 7,
+    "twitter": 5, "x ": 3, " x.": 3, "facebook": 5,
+    "linkedin": 6, "snapchat": 5, "telegram": 6, "discord": 5,
+    "reddit": 5, "spotify": 6,
+
+    # ── TIER 4: AI / tech (lower weight than before — too saturated) ──
+    # We don't want every "OpenAI launches X" to dominate the digest.
+    "gpt": 5, "openai": 5, "anthropic": 5, "claude": 4, "gemini": 5,
+    "llm": 4, "agent": 4, "agentic": 5,
+    "breakthrough": 6,   # only when ACTUAL breakthrough
+    "first": 3,
+
+    # ── TIER 4: Big Tech (low — too common) ──
+    "google": 3, "meta": 4, "apple": 3, "microsoft": 3,
+    "nvidia": 5, "amazon": 3, "tesla": 4, "spacex": 4,
+
+    # ── Curiosity triggers ──
+    "secret": 8, "hidden": 8, "actually": 4, "turns out": 6, "revealed": 6,
+    "surprising": 5, "loophole": 9, "workaround": 7, "trick": 5,
+    "why": 3, "how": 2,
 }
 
 # Phrases that pattern-match — checked separately
 HOOK_PATTERNS = [
-    (r"\b(\d+)\s*(million|billion|trillion)\b", 4),   # "5 million users"
-    (r"\b(\d{2,3})%\b", 3),                            # "70% of users"
-    (r"\?$", 3),                                       # title is a question
-    (r"^how\b", 2),                                    # "How X does Y"
-    (r"^why\b", 3),                                    # "Why X happened"
+    (r"\b(\d+)\s*(million|billion|trillion|lakh|crore)\b", 5),   # "27% commission", "10 million users"
+    (r"\b(\d{1,3})\s*%\b", 5),                                    # "27%", "90 percent"
+    (r"\b₹\s*\d", 5),                                             # "₹38 lakh"
+    (r"\brs\.?\s*\d", 4),                                         # "Rs 38 lakh"
+    (r"\$\s*\d", 3),
+    (r"\?$", 2),                                                  # title is a question
+    (r"^how\b", 2),                                               # "How X does Y"
+    (r"^why\b", 3),                                               # "Why X happened"
+    (r"^inside\b", 5),                                            # "Inside Instagram's..."
 ]
 
 NEGATIVE_PATTERNS = [
-    # filter out obvious clickbait/listicles/promos
-    (r"\bdeal\b|\bsale\b|\bcoupon\b|\bdiscount\b", -8),
-    (r"\bbest \d+\b|\btop \d+\b", -4),
-    (r"\bguide\b|\btutorial\b|\bhow to install\b", -3),
-    (r"\bsponsored\b|\bgiveaway\b", -10),
+    # Filter out the stuff Neeraj never covers
+    (r"\bdeal\b|\bsale\b|\bcoupon\b|\bdiscount\b|\boffer\b", -10),
+    (r"\bbest \d+\b|\btop \d+\b|\b\d+ best\b", -6),
+    (r"\bguide\b|\btutorial\b|\bhow to install\b|\bhow to use\b", -5),
+    (r"\bsponsored\b|\bgiveaway\b|\bpromotion\b", -10),
+    (r"\breview\b|\bunboxing\b|\bhands\-on\b", -5),     # he doesn't do reviews
+    (r"\bvaluation\b|\braised \$|\bseries [a-d]\b|\bfunding round\b", -4),   # funding news = boring
+    (r"\bearnings\b|\bquarterly results\b|\bq[1-4] 20\d\d\b", -4),           # earnings = boring
+    (r"\brumor\b|\brumors\b|\bleaked specs\b|\bcould launch\b", -3),         # speculation
+    (r"\bopinion\b|\beditorial\b|\bcolumn\b", -3),
 ]
 
 
@@ -119,7 +177,15 @@ def score(stories: list[dict]) -> list[dict]:
         # Title weighted more than summary — headline = the actual hook
         title_score, title_kws = _score_text(s["title"])
         summary_score, _ = _score_text(s["summary"])
-        s["hook_score"] = title_score * 2 + summary_score
+
+        # Source category bonus — Indian + policy sources match the EZ formula better
+        category_bonus = {
+            "india_tech":   8,    # Inc42, YourStory, ET Tech etc.
+            "india_policy": 10,   # Medianama — pure regulation gold
+            "platform":     3,
+        }.get(s.get("category", ""), 0)
+
+        s["hook_score"] = title_score * 2 + summary_score + category_bonus
         s["matched_keywords"] = title_kws[:5]
     return stories
 
