@@ -1,0 +1,41 @@
+# Secrets — NEVER commit these
+.env
+.env.local
+*.key
+secrets.json
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+dist/
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE / editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs and local output
+*.log
+out.json
+digest_*.json
+
+# OS
+.DS_Store
+desktop.ini
