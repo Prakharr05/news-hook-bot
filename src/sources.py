@@ -19,6 +19,16 @@ RSS_FEEDS = [
     # Platform / policy / leaks
     {"name": "9to5Mac",          "url": "https://9to5mac.com/feed/",                          "category": "platform"},
     {"name": "9to5Google",       "url": "https://9to5google.com/feed/",                       "category": "platform"},
+
+    # ─── INDIAN sources — high weight for EZ Snippet-style content ───
+    # These surface the Zomato-commission, UPI-rule, RBI-mandate type stories.
+    {"name": "Inc42",            "url": "https://inc42.com/feed/",                            "category": "india_tech"},
+    {"name": "YourStory",        "url": "https://yourstory.com/feed",                         "category": "india_tech"},
+    {"name": "Entrackr",         "url": "https://entrackr.com/feed/",                         "category": "india_tech"},
+    {"name": "MoneyControl Tech","url": "https://www.moneycontrol.com/rss/technology.xml",    "category": "india_tech"},
+    {"name": "The Ken (free)",   "url": "https://the-ken.com/feed/",                          "category": "india_tech"},
+    {"name": "ET Tech",          "url": "https://economictimes.indiatimes.com/tech/rssfeeds/13357270.cms", "category": "india_tech"},
+    {"name": "Medianama",        "url": "https://www.medianama.com/feed/",                    "category": "india_policy"},
 ]
 
 # Hacker News & Reddit are pulled via JSON APIs in fetcher.py
