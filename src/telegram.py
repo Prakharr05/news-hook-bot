@@ -74,16 +74,12 @@ def format_digest(stories: list[dict]) -> list[str]:
     return chunks
 
 
-def send(stories: list[dict]) -> None:
+def _send_chunks(chunks: list[str]) -> None:
+    """Shared helper used by both send() and send_scripts()."""
     token = os.environ.get("TELEGRAM_BOT_TOKEN")
     chat_id = os.environ.get("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
         raise RuntimeError("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set")
-
-    if not stories:
-        chunks = [_escape_md("No high-score news today — try lowering min_score.")]
-    else:
-        chunks = format_digest(stories)
 
     url = API_BASE.format(token=token)
     with httpx.Client(timeout=20.0) as client:
@@ -103,3 +99,51 @@ def send(stories: list[dict]) -> None:
                 client.post(url, json=payload)
             time.sleep(0.5)   # be nice to the Telegram rate limit
     logger.info("Sent %d message chunks to Telegram", len(chunks))
+
+
+def send(stories: list[dict]) -> None:
+    """Send the daily digest (hooks + payoffs, not full scripts)."""
+    if not stories:
+        chunks = [_escape_md("No high-score news today — try lowering min_score.")]
+    else:
+        chunks = format_digest(stories)
+    _send_chunks(chunks)
+
+
+def send_scripts(stories: list[dict]) -> None:
+    """Send full reel scripts. One Telegram message per script for easy copy-paste."""
+    if not stories:
+        _send_chunks([_escape_md("No scripts to send.")])
+        return
+
+    chunks: list[str] = []
+    for s in stories:
+        scr = s.get("script", {}) or {}
+        if "error" in scr:
+            chunks.append(_escape_md(f"⚠️ Script gen failed for: {s['title']}\n{scr['error']}"))
+            continue
+
+        title = _escape_md(s["title"])
+        source = _escape_md(s["source"])
+        template = _escape_md(scr.get("template", "?"))
+        secs = scr.get("estimated_seconds", "?")
+        words = scr.get("word_count", "?")
+        cta = _escape_md(scr.get("cta_word", "?"))
+        notes = _escape_md(scr.get("notes_for_filming", "—"))
+        script_text = _escape_md(scr.get("script", "(no script)"))
+        url = s["url"]
+
+        # Use ``` code block for the script body so copy-paste preserves whitespace
+        # and Telegram renders it monospace (easy to read for filming).
+        block = (
+            f"🎬 *REEL SCRIPT*\n"
+            f"*Story:* {title}\n"
+            f"_{source} · {template} · ~{secs}s · {words} words_\n\n"
+            f"```\n{scr.get('script', '')}\n```\n\n"
+            f"🔁 *CTA word:* `{scr.get('cta_word', '?')}`\n"
+            f"🎥 *Filming:* {notes}\n"
+            f"[Read source]({url})"
+        )
+        chunks.append(block)
+
+    _send_chunks(chunks)
