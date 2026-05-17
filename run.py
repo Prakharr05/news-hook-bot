@@ -113,12 +113,43 @@ def cmd_script(args) -> int:
     selected = script_gen.generate_scripts(selected)
 
     for i, s in enumerate(selected, 1):
-        scr = s.get("script", {})
+        scr = s.get("script", {}) or {}
         story_num = args.index if not args.all else i
+
+        # Error case
+        if "error" in scr:
+            print(f"\n⚠️ Script gen failed for #{story_num}: {scr['error']}")
+            continue
+
         print("\n" + "=" * 78)
         print(f"STORY #{story_num}: {s['title']}")
-        print(f"Source: {s['source']}  |  Template: {scr.get('template', '?')}  |  "
+        print("─" * 78)
+
+        # Show the brainstorm in all cases (rejected or not)
+        angles = scr.get("angles_considered", {})
+        if angles:
+            print("Angles considered:")
+            chosen = scr.get("chosen_template", "").upper()
+            for k in ("opportunity", "insight", "tutorial"):
+                a = angles.get(k, {})
+                if a:
+                    marker = "✅" if k.upper() == chosen else "  "
+                    print(f"  {marker} {k.upper():<12} [{a.get('score', '?')}/10] {a.get('summary', '')}")
+            print()
+
+        # Rejection case
+        if scr.get("script_worth_making") is False:
+            print(f"⏭️  REJECTED — {scr.get('rejection_reason', '—')}")
+            print(f"💡 Suggested next: {scr.get('alternative_angle', '—')}")
+            print("=" * 78)
+            continue
+
+        # Success case
+        template = scr.get("chosen_template", scr.get("template", "?"))
+        print(f"Template: {template}  |  Source: {s['source']}  |  "
               f"~{scr.get('estimated_seconds', '?')}s  |  {scr.get('word_count', '?')} words")
+        if scr.get("why_chosen"):
+            print(f"Why this angle: {scr['why_chosen']}")
         print("─" * 78)
         print(scr.get("script", "(no script)"))
         print(f"\nCTA word: {scr.get('cta_word', '?')}")

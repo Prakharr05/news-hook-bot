@@ -43,9 +43,53 @@ You output only valid JSON, no markdown fences, no preamble.
    ✅ "Bhai agar aapke bhi fake followers hain toh chinta mat karo, batata hu kaise asli vs nakli detect hota hai."
 6. The first sentence is conversational and warm — "chinta mat karo", "agar aap bhi...", "khush karna chahte ho".
 
-# SCRIPT STRUCTURE — pick the right template
+# SCRIPT STRUCTURE — brainstorm angles first, then pick the strongest
 
-## Template A: TUTORIAL
+## STEP 1: Brainstorm 3 angles (one per template)
+
+Every news story has MULTIPLE possible reels hidden inside it. Don't just look at the surface — look at what's underneath.
+
+For each story, write 3 candidate angles:
+
+**OPPORTUNITY angle:** What market gap, broken industry, or builder opportunity does this story expose? Even labor strikes, lawsuits, and policy changes often reveal a missing tech solution someone could build. Always ask: "What MVP could a developer ship in response to this?"
+
+**INSIGHT angle:** What underlying mechanism, algorithm, or system does this story touch? Could you explain 5 distinct concrete technical points about HOW that mechanism works? (Hard quality bar — see below.)
+
+**TUTORIAL angle:** Is there a tool, trick, or 3-step process the viewer could DO RIGHT NOW related to this story? (e.g., "how to verify your e-prescription", "how to check if an account is a bot")
+
+For each, score 1-10 on:
+- Concreteness — can you fill it with real numbers/terms, not filler?
+- Audience value — would Prakhar's followers learn something they can act on?
+- Hook potential — does the opening line make someone stop scrolling?
+
+## STEP 2: Pick the highest-scoring angle and write the script
+
+If ALL THREE angles score below 5, reject with rejection_reason explaining why none of them work.
+
+⚠️ Default tiebreaker — when angles are close in score, prefer in this order:
+  OPPORTUNITY > TUTORIAL > INSIGHT
+Reason: OPPORTUNITY and TUTORIAL are concrete by nature. INSIGHT fails when the LLM has to invent filler technical points.
+
+## Example reframings of stories that LOOK weak
+
+**Story: "12 lakh chemists striking against AI prescriptions"**
+- ❌ Bad take (what NOT to do): "5 reasons fake AI prescriptions are bad" — restates the news, no insight
+- ✅ OPPORTUNITY: "Indian pharma is 1.5 lakh crore market, no AI prescription verification exists. Build a blockchain/digital-signature MVP and sell to pharmacies as B2B SaaS."
+- ✅ TUTORIAL: "3 ways to check if your e-prescription is AI-generated before you buy"
+
+**Story: "EU fines TikTok over child safety algorithms"**
+- ❌ Bad take: "5 reasons algorithms are addictive" — generic textbook knowledge
+- ✅ INSIGHT (only if concrete): "5 specific mechanisms TikTok uses to maximize watch time: 1) Variable reward schedule with 30-60 sec dopamine cycle. 2) Implicit signal weighting — pause time > likes. 3) Cold-start exploration via topic clusters. 4) Negative-engagement penalty for skip-throughs. 5) Time-of-day model that pushes high-arousal content at night."
+- ✅ OPPORTUNITY: "EU is mandating addiction-prevention by 2027. Build a 'screen-time-aware recommender' library and sell to Indian platforms before regulation comes here."
+
+**Story: "Microsoft layoffs 15,000 in cloud division"**
+- ❌ Bad take: generic "5 reasons tech layoffs are happening"
+- ✅ OPPORTUNITY: "15k Microsoft cloud engineers are now job-hunting. Indian SaaS startups should aggressively hire them — here's the pitch."
+- ✅ Reject if no good Indian angle.
+
+## Template details (use after STEP 2)
+
+### Template A: TUTORIAL
 Use when the news is about a tool, trick, hack, or process the viewer can follow.
 
 Beats:
@@ -55,24 +99,33 @@ Beats:
 - Payoff: "Aapki [thing] ready hojayegi" + 2-3 specifics
 - CTA: "Comment karo [TRIGGER_WORD] aur mai [thing] tumhe dm kardunga."
 
-## Template B: INSIGHT
-Use when the news is about *how something works*, *why something is broken*, or *what 3-5 things matter*.
+### Template B: INSIGHT
+ONLY use when you have 5 genuinely distinct, CONCRETE technical points.
+
+⚠️ HARD QUALITY BAR — each point must:
+- Name a specific technical mechanism, term, or actionable change
+- Not be a paraphrase of the headline
+- Not be a vague generality the audience already knows
+- Pass the "would someone learn something specific?" test
+
+Good example: "Replace '8K hyper realistic' with '35mm anamorphic lens' for real depth"
+Bad example: "Regulation ki kami se misuse badh raha hai"
 
 Beats:
 - Hook: "Bhai agar aapki bhi [problem]... toh chinta mat karo / solution aa gaya hai."
 - Bridge: "Toh bhai dekho [problem] [reason], kyunki tum [N] cheezein miss kar rahe ho."
-- Body: Numbered insights — "Pehli baat... doosri baat... teesri baat... chauthi baat... aakhri baat..." Each insight is one specific actionable point.
-- Payoff: Implicit — the insights themselves are the payoff.
+- Body: 5 numbered insights — "Pehli baat... doosri baat..."
+- Payoff: Implicit.
 - CTA: "Comment karo [TRIGGER_WORD] aur mai iski puri detail tumhe dm kardunga."
 
-## Template C: OPPORTUNITY
-Use when the news reveals a business/build opportunity (broken industry, hidden cost, new market).
+### Template C: OPPORTUNITY
+Use when the news reveals a market gap or builder opportunity. STRONG DEFAULT — pick this when in doubt.
 
 Beats:
-- Hook: "Bhai [shock fact about an industry]." (declarative)
-- Bridge: "Ye ek problem hai aur tum isse [tech/AI] se solve karke paise kama sakte ho."
-- Body: Market numbers (crore/lakh) + the gap + what kind of solution would work.
-- Payoff: "Agar koi yeh structure banaye toh [outcome]."
+- Hook: "Bhai [shock fact about an industry/market]." Declarative. INR numbers if available.
+- Bridge: "Ye ek problem hai aur tum isse [tech/AI/specific solution] se solve karke paise kama sakte ho."
+- Body: Market size in crore/lakh + the specific gap + what kind of MVP would work + which existing players fall short
+- Payoff: "Agar koi yeh structure banaye toh [specific outcome — revenue, scale, audience]."
 - CTA: "Comment karo [TRIGGER_WORD] aur mai iska blueprint dm kardunga."
 
 # CTA TRIGGER WORD RULES
@@ -90,21 +143,46 @@ Title: {title}
 Source: {source}
 Summary: {summary}
 
-Existing hook/angle for reference (you can improve on it):
+Existing hook/angle for reference:
 Hook: {hook}
 Tech angle: {tech_angle}
-Payoff structure suggestion: {payoff_structure}
 
-Generate a complete Instagram Reel script in EZ Snippet voice. Pick the right template (TUTORIAL, INSIGHT, or OPPORTUNITY) for this specific news. Output ONLY this JSON:
+STEP 1: Brainstorm 3 angles (one per template). Score each 1-10 on concreteness + audience value + hook potential.
+STEP 2: Pick the highest-scoring angle. Tiebreak: OPPORTUNITY > TUTORIAL > INSIGHT.
+STEP 3: Write the full script in EZ Snippet voice with HARD QUALITY BAR enforced.
 
+Only reject (`script_worth_making: false`) if ALL THREE angles score below 5 — i.e., the story genuinely has no concrete angle. Most stories have at least an OPPORTUNITY angle if you look underneath the surface.
+
+Output ONLY this JSON:
+
+If APPROVING (the normal case):
 {{
-  "template": "TUTORIAL | INSIGHT | OPPORTUNITY",
-  "title": "Short script title for reference",
-  "script": "Full script as one block of Hinglish text, starting with 'Bhai'. Should read like a person talking, no stage directions, no [pause] markers.",
-  "cta_word": "Single ALL-CAPS English word",
+  "script_worth_making": true,
+  "angles_considered": {{
+    "opportunity": {{"summary": "1-line OPPORTUNITY angle", "score": 8}},
+    "insight":     {{"summary": "1-line INSIGHT angle",     "score": 5}},
+    "tutorial":    {{"summary": "1-line TUTORIAL angle",    "score": 6}}
+  }},
+  "chosen_template": "OPPORTUNITY",
+  "why_chosen": "1 sentence on why this angle wins over the other two",
+  "title": "Short script title",
+  "script": "Full script as one block of Hinglish text starting with 'Bhai'. No stage directions.",
+  "cta_word": "Single ALL-CAPS English word relevant to the topic",
   "estimated_seconds": 45,
   "word_count": 95,
-  "notes_for_filming": "1-2 line note on visual b-roll suggestion or screen recording cues"
+  "notes_for_filming": "1-2 line b-roll / screen recording suggestion"
+}}
+
+If REJECTING (rare — only when all 3 score below 5):
+{{
+  "script_worth_making": false,
+  "angles_considered": {{
+    "opportunity": {{"summary": "...", "score": 3}},
+    "insight":     {{"summary": "...", "score": 2}},
+    "tutorial":    {{"summary": "...", "score": 4}}
+  }},
+  "rejection_reason": "Why no angle reaches the bar",
+  "alternative_angle": "What kind of follow-up news might unlock this story"
 }}"""
 
 

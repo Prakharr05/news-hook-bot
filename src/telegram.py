@@ -123,22 +123,48 @@ def send_scripts(stories: list[dict]) -> None:
             chunks.append(_escape_md(f"⚠️ Script gen failed for: {s['title']}\n{scr['error']}"))
             continue
 
+        # Rejection — show the brainstorm so user sees why
+        if scr.get("script_worth_making") is False:
+            title = _escape_md(s["title"])
+            reason = _escape_md(scr.get("rejection_reason", "no reason given"))
+            alt = _escape_md(scr.get("alternative_angle", "—"))
+            angles = scr.get("angles_considered", {})
+            angles_text = ""
+            for k in ("opportunity", "insight", "tutorial"):
+                a = angles.get(k, {})
+                if a:
+                    angles_text += f"\n• *{k.upper()}* \\({a.get('score', '?')}/10\\): {_escape_md(a.get('summary', ''))}"
+            chunks.append(
+                f"⏭️ *No strong angle found*\n"
+                f"*Story:* {title}\n"
+                f"{angles_text}\n\n"
+                f"*Why rejected:* {reason}\n"
+                f"💡 *Next:* {alt}"
+            )
+            continue
+
         title = _escape_md(s["title"])
         source = _escape_md(s["source"])
-        template = _escape_md(scr.get("template", "?"))
+        template = _escape_md(scr.get("chosen_template", scr.get("template", "?")))
         secs = scr.get("estimated_seconds", "?")
         words = scr.get("word_count", "?")
-        cta = _escape_md(scr.get("cta_word", "?"))
         notes = _escape_md(scr.get("notes_for_filming", "—"))
-        script_text = _escape_md(scr.get("script", "(no script)"))
         url = s["url"]
 
-        # Use ``` code block for the script body so copy-paste preserves whitespace
-        # and Telegram renders it monospace (easy to read for filming).
+        # Show the brainstorm so you see the rejected angles too
+        angles = scr.get("angles_considered", {})
+        angles_text = ""
+        for k in ("opportunity", "insight", "tutorial"):
+            a = angles.get(k, {})
+            if a:
+                marker = "✅" if k.upper() == scr.get("chosen_template", "") else "  "
+                angles_text += f"\n{marker} *{k.upper()}* \\({a.get('score', '?')}/10\\): {_escape_md(a.get('summary', ''))}"
+
         block = (
             f"🎬 *REEL SCRIPT*\n"
             f"*Story:* {title}\n"
-            f"_{source} · {template} · ~{secs}s · {words} words_\n\n"
+            f"_{source} · {template} · ~{secs}s · {words} words_\n"
+            f"{angles_text}\n\n"
             f"```\n{scr.get('script', '')}\n```\n\n"
             f"🔁 *CTA word:* `{scr.get('cta_word', '?')}`\n"
             f"🎥 *Filming:* {notes}\n"
