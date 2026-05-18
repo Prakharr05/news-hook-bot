@@ -200,6 +200,17 @@ def send_scripts(stories: list[dict], chat_id: str | None = None) -> None:
             specs_text = ", ".join(_escape_md(str(x)) for x in specifics[:6])
             block += f"📌 *Specifics kept:* {specs_text}\n"
 
+        # Show structural choices — helps you spot if the LLM is defaulting
+        opener = scr.get("hook_opener_used")
+        body = scr.get("body_structure_used")
+        if opener or body:
+            structure_bits = []
+            if opener:
+                structure_bits.append(f"opener: {_escape_md(opener)}")
+            if body:
+                structure_bits.append(f"body: {_escape_md(body)}")
+            block += f"🏗️ *Structure:* {' · '.join(structure_bits)}\n"
+
         block += (
             f"🔁 *CTA word:* `{scr.get('cta_word', '?')}`\n"
             f"🎥 *Filming:* {notes}\n"
