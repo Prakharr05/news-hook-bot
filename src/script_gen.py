@@ -70,7 +70,20 @@ For each story, write 4 candidate angles:
 
 **OPPORTUNITY angle:** What market gap, broken industry, or builder opportunity does this story expose? Even labor strikes, lawsuits, and policy changes often reveal a missing tech solution someone could build. Always ask: "What MVP could a developer ship in response to this?"
 
+⚠️ HARD CALIBRATION FOR OPPORTUNITY SCORE — be ruthless:
+- "Build an enhanced version of an existing free tool" → max 4/10 (no real gap)
+- "Educate creators about X" → max 3/10 (info content, not a build opportunity)
+- "Build a service around an existing platform's feature" → max 5/10 (platform will absorb it)
+- 8/10+ ONLY when: clear market in crore/lakh scale + specific gap not served by existing players + concrete MVP technical approach + named buyers (Indian companies)
+- Default to 5-6/10 unless you can list (a) market size, (b) specific gap, (c) MVP approach, (d) target buyer. Missing any of these → cap at 6.
+
 **INSIGHT angle:** What underlying mechanism, algorithm, or system does this story touch? Could you explain 5 distinct concrete technical points about HOW that mechanism works? (Hard quality bar — see below.)
+
+⚠️ HARD CALIBRATION FOR INSIGHT SCORE — be generous when the source IS technical:
+- If the source contains 4+ distinct, named technical mechanisms (algorithms, layers, signals, components) → score 8-9/10 minimum
+- If the source contains 2-3 named mechanisms → score 6-7/10
+- If the source only mentions a system without explaining how it works → score 3-4/10
+- DON'T default-score INSIGHT at 5/10 when the source already lists 5 mechanisms ready to be turned into 5 numbered points. That's an 8+ story.
 
 **TUTORIAL angle:** Is there a tool, trick, or 3-step process the viewer could DO RIGHT NOW related to this story? (e.g., "how to verify your e-prescription", "how to check if an account is a bot")
 
@@ -109,6 +122,57 @@ Reason: OPPORTUNITY, TWIST, and TUTORIAL are concrete by nature. INSIGHT fails w
 - ✅ Reject if no good Indian angle.
 
 ## Template details (use after STEP 2)
+
+# ⚠️ VARIETY RULES — break the monotony
+
+Real EZ Snippet reels don't all open the same way. Pick the hook opener and body structure that FITS the news, not the default. If you keep generating reels with the same "Bhai agar aap..." opener and same "Pehli baat... Doosri baat..." body, the audience will sense the template after 3-4 reels and stop watching. Vary by news shape.
+
+## Hook opener variety — pick the one that fits
+
+**Opener 1: User-state framed** (current default, ONLY use when there's a clear aspiration/pain)
+- "Bhai agar aap [aspiration]..." / "Bhai agar aapki [problem]..."
+- Best for: tutorials, when viewer has a clear "I want this" or "I have this problem"
+- Example: "Bhai agar aap unlimited trending AI videos banana chahte ho..."
+
+**Opener 2: Declarative shock fact** (high-impact, news IS the hook)
+- "Bhai [shock fact]." Period. Move on.
+- Best for: TWIST stories, big-number OPPORTUNITY stories, surprising mechanism reveals
+- Example: "Bhai Zomato 1 order pe 27% commission kaat ta hai."
+- Example: "Bhai pehli baar ChatGPT generative AI market mein second pe gir gaya."
+
+**Opener 3: Solution-announcement** (when a new tool/rule just arrived)
+- "Bhai ab [thing] possible hai..." / "Bhai [tool] aa gaya hai..."
+- Best for: tool launches, feature drops, regulation arrivals
+- Example: "Bhai ab YouTube par deepfake videos detect kar sakte ho khud."
+
+**Opener 4: Direct pain callout** (no setup, straight to the problem)
+- "Bhai [direct problem statement]." Then solution.
+- Best for: INSIGHT stories about something users already face daily
+- Example: "Bhai aapki AI image aise unreal lagti hain kyunki..."
+
+⚠️ ROTATION RULE: Don't pick "User-state framed" by default. Look at the news: if it has a shock fact, use Opener 2. If it's a launch, use Opener 3. If users face the problem already, use Opener 4. Only fall back to Opener 1 when none of the others fit.
+
+## INSIGHT body structure variety
+
+When using INSIGHT, do NOT always use "Pehli baat... Doosri baat... Teesri baat..." It becomes formulaic across reels. Pick ONE of these 4 patterns based on the content:
+
+**Pattern A: Classic numbered (Pehli/Doosri/Teesri)**
+Use when each point is fully standalone and equal in importance.
+"Toh bhai dekho [X] hota hai 5 layers se. Pehli baat — [layer 1]. Doosri baat — [layer 2]. Teesri baat — [layer 3]. Chauthi baat — [layer 4]. Aur aakhri baat — [layer 5]."
+
+**Pattern B: Cold list + expand**
+State all 5 in one breath, then briefly expand each. Faster pacing.
+"Toh dekho, [X] hota hai sirf 5 cheezon se: [A], [B], [C], [D], aur [E]. Pehla [A] — [one-line explanation]. Phir [B] — [one-line]. [C] [one-line]. [D] aur [E] together [one-line]."
+
+**Pattern C: Cascading filter**
+Use when the mechanism is a sequential check — each step gates the next.
+"[Mechanism] kaise check karta hai? Pehla layer — [X]. Agar wahan paas ho jaye, toh [Y]. Phir [Z]. Agar [Z] bhi paas, toh aakhri check — [final]."
+
+**Pattern D: Question-driven**
+Open each point with "kyu?" / "kaise?" — feels more conversational, less listy.
+"Toh dekho, [X] kaise detect karta hai? Kyunki — pehli wajah [A]. Doosri wajah [B]. Teesri kyu — [C]." (etc.)
+
+⚠️ Pattern A (your current default) should ONLY be used when 5 points are truly equal and standalone. Otherwise pick B/C/D. Goal: across 5 reels, no two should use the same body pattern.
 
 ### Template A: TUTORIAL
 Use when the news is about a tool, trick, hack, or process the viewer can follow.
@@ -209,6 +273,8 @@ If APPROVING (the normal case):
   }},
   "chosen_template": "OPPORTUNITY | INSIGHT | TUTORIAL | TWIST",
   "why_chosen": "1 sentence on why this angle wins over the others",
+  "hook_opener_used": "user-state | declarative | solution-announcement | direct-pain",
+  "body_structure_used": "classic-numbered | cold-list | cascading-filter | question-driven | step-by-step | market-gap | twist-reveal",
   "specifics_preserved": ["list of specific numbers/names/terms you kept from the source"],
   "title": "Short script title",
   "script": "Full script as one block of Hinglish text starting with 'Bhai'. No stage directions.",
