@@ -41,6 +41,7 @@ HELP_TEXT = (
     "`/script N opportunity` — Force OPPORTUNITY framing\n"
     "`/script N insight` — Force INSIGHT framing\n"
     "`/script N tutorial` — Force TUTORIAL framing\n"
+    "`/script N twist` — Force TWIST framing\n"
     "`/help` — Show this message\n\n"
     "_Daily digest arrives automatically at 8:30 AM IST\\._"
 )
@@ -85,15 +86,16 @@ def handle_command(text: str, user: dict) -> None:
                 "`/script N` \\(auto\\-pick template\\)\n"
                 "`/script N opportunity` \\(force OPPORTUNITY\\)\n"
                 "`/script N insight` \\(force INSIGHT\\)\n"
-                "`/script N tutorial` \\(force TUTORIAL\\)")
+                "`/script N tutorial` \\(force TUTORIAL\\)\n"
+                "`/script N twist` \\(force TWIST\\)")
             return
 
         idx = int(parts[1]) - 1
         template_override = None
         if len(parts) == 3:
             t = parts[2].lower()
-            if t not in {"opportunity", "insight", "tutorial"}:
-                _send_text(chat_id, f"Unknown template `{parts[2]}`\\. Use opportunity, insight, or tutorial\\.")
+            if t not in {"opportunity", "insight", "tutorial", "twist"}:
+                _send_text(chat_id, f"Unknown template `{parts[2]}`\\. Use opportunity, insight, tutorial, or twist\\.")
                 return
             template_override = t.upper()
 

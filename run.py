@@ -204,8 +204,8 @@ def main() -> int:
     s.add_argument("--send",  action="store_true",
                    help="also send generated script(s) to Telegram")
     s.add_argument("--template", type=str, default=None,
-                   choices=["opportunity", "insight", "tutorial",
-                            "OPPORTUNITY", "INSIGHT", "TUTORIAL"],
+                   choices=["opportunity", "insight", "tutorial", "twist",
+                            "OPPORTUNITY", "INSIGHT", "TUTORIAL", "TWIST"],
                    help="force a specific template instead of letting LLM pick")
 
     args = ap.parse_args()

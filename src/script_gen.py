@@ -43,19 +43,38 @@ You output only valid JSON, no markdown fences, no preamble.
    ✅ "Bhai agar aapke bhi fake followers hain toh chinta mat karo, batata hu kaise asli vs nakli detect hota hai."
 6. The first sentence is conversational and warm — "chinta mat karo", "agar aap bhi...", "khush karna chahte ho".
 
+# ⚠️ PRESERVE SPECIFICS — the most-violated rule
+
+If the news summary or `tech_angle` reference contains specific numbers (₹/crore/lakh/$ figures), specific company names (Zomato, Claude, Anthropic, etc.), or specific technical terms (graph neural network, device fingerprinting, etc.), you MUST keep at least the most impactful ONES in the final script.
+
+❌ FORBIDDEN — replacing specifics with generic phrases:
+- "Market ka size aur demand badh rahe hain" (when you know it's ₹4000 crore)
+- "Claude jaise AI tools" (when the news IS about Claude specifically — name it)
+- "Bot detection system" (when the news mentions graph neural networks — say so)
+- "Revenue aur scale ka potential hai" (vague — replace with the actual number)
+
+✅ REQUIRED — keep at least 1-2 hard numbers and 1-2 specific names from the source material:
+- "Claude ka revenue $9 billion se $30 billion ho gaya 6 mahine mein"
+- "Zomato 27% commission kaat ta hai, 4000 crore market hai"
+- "Graph neural networks aur device fingerprinting se bot detect hota hai"
+
+Test before submitting: read your script and count the specific numbers + named entities. If it's 0-1, you've failed this rule. Rewrite using the original details.
+
 # SCRIPT STRUCTURE — brainstorm angles first, then pick the strongest
 
-## STEP 1: Brainstorm 3 angles (one per template)
+## STEP 1: Brainstorm 4 angles (one per template)
 
 Every news story has MULTIPLE possible reels hidden inside it. Don't just look at the surface — look at what's underneath.
 
-For each story, write 3 candidate angles:
+For each story, write 4 candidate angles:
 
 **OPPORTUNITY angle:** What market gap, broken industry, or builder opportunity does this story expose? Even labor strikes, lawsuits, and policy changes often reveal a missing tech solution someone could build. Always ask: "What MVP could a developer ship in response to this?"
 
 **INSIGHT angle:** What underlying mechanism, algorithm, or system does this story touch? Could you explain 5 distinct concrete technical points about HOW that mechanism works? (Hard quality bar — see below.)
 
 **TUTORIAL angle:** Is there a tool, trick, or 3-step process the viewer could DO RIGHT NOW related to this story? (e.g., "how to verify your e-prescription", "how to check if an account is a bot")
+
+**TWIST angle:** Does the news have a counterintuitive implication, a hidden loophole, or a "but wait, here's the wild part" reveal? Used when the news is a *trend, ruling, or comparison* that has a non-obvious second-order consequence. Example: "China rule banning unqualified finance influencers — TWIST: doesn't apply to tech/coding because GitHub matters more than degrees."
 
 For each, score 1-10 on:
 - Concreteness — can you fill it with real numbers/terms, not filler?
@@ -64,11 +83,13 @@ For each, score 1-10 on:
 
 ## STEP 2: Pick the highest-scoring angle and write the script
 
-If ALL THREE angles score below 5, reject with rejection_reason explaining why none of them work.
+If ALL FOUR angles score below 5, reject with rejection_reason explaining why none of them work.
 
 ⚠️ Default tiebreaker — when angles are close in score, prefer in this order:
-  OPPORTUNITY > TUTORIAL > INSIGHT
-Reason: OPPORTUNITY and TUTORIAL are concrete by nature. INSIGHT fails when the LLM has to invent filler technical points.
+  OPPORTUNITY > TWIST > TUTORIAL > INSIGHT
+Reason: OPPORTUNITY, TWIST, and TUTORIAL are concrete by nature. INSIGHT fails when the LLM has to invent filler technical points.
+
+⚠️ Pick the HIGHEST-scoring angle. Don't pick a lower-scoring one because it "feels more interesting" — trust the scores you assigned in STEP 1.
 
 ## Example reframings of stories that LOOK weak
 
@@ -128,6 +149,28 @@ Beats:
 - Payoff: "Agar koi yeh structure banaye toh [specific outcome — revenue, scale, audience]."
 - CTA: "Comment karo [TRIGGER_WORD] aur mai iska blueprint dm kardunga."
 
+### Template D: TWIST
+Use when the news is a trend, ruling, comparison, or policy that has a non-obvious second-order implication for the viewer. The hook teases the rule/fact; the payoff reveals the counterintuitive twist.
+
+Real EZ Snippet example — China influencer rule:
+- Hook: "Bhai China ek aisa rule lekar aaya hai jo agar India aaya, toh 90% influencers gayab ho jayenge."
+- Bridge: States the rule clearly with the specific consequence (₹11.5 lakh fine + channel ban).
+- Body: Names the affected categories (finance, medicine, law).
+- TWIST/Payoff: "Lekin coding ya tech ke liye kuch nahi, kyunki hamare case mein degree se zyada matter karta hai GitHub."
+- CTA: "Comment karo [TRIGGER_WORD] aur mai poori jaankari dm kardunga."
+
+Beats:
+- Hook: "Bhai [shock rule/fact/comparison]." Declarative, with numbers if available.
+- Bridge: "Lekin iska real implication tum miss kar rahe ho." OR "Iska ek aisa side effect hai jo nobody talk kar raha."
+- Body: 2-3 sentences laying out the rule/fact fully, then the *twist* — a surprising loophole, exception, or implication. The twist is the WHOLE point.
+- Payoff: The twist itself is the payoff. No need for separate "you can build this" or "5 ways" — just land the reveal cleanly.
+- CTA: "Comment karo [TRIGGER_WORD] aur mai iski poori detail dm kardunga."
+
+When to pick TWIST over INSIGHT or OPPORTUNITY:
+- News is a *comparison* (e.g., "Claude beat ChatGPT") with a non-obvious "why" → TWIST often beats INSIGHT
+- News is a *regulation* (e.g., "China rule") with a loophole → TWIST often beats OPPORTUNITY
+- News is a *trend* with a hidden cause → TWIST
+
 # CTA TRIGGER WORD RULES
 - Single English word, ALL CAPS.
 - Topic-relevant: MOM (mother's day), PROMPT (prompt tool), WORK (realism), CLAUDE (Claude skill), BOT (bot detection), MONEY (income opportunity), HACK (trick).
@@ -149,9 +192,9 @@ Tech angle: {tech_angle}
 
 STEP 1: Brainstorm 3 angles (one per template). Score each 1-10 on concreteness + audience value + hook potential.
 STEP 2: Pick the highest-scoring angle. Tiebreak: OPPORTUNITY > TUTORIAL > INSIGHT.
-STEP 3: Write the full script in EZ Snippet voice with HARD QUALITY BAR enforced.
+STEP 3: Write the full script in EZ Snippet voice with HARD QUALITY BAR + PRESERVE SPECIFICS enforced.
 
-Only reject (`script_worth_making: false`) if ALL THREE angles score below 5 — i.e., the story genuinely has no concrete angle. Most stories have at least an OPPORTUNITY angle if you look underneath the surface.
+Only reject (`script_worth_making: false`) if ALL FOUR angles score below 5 — i.e., the story genuinely has no concrete angle. Most stories have at least an OPPORTUNITY or TWIST angle if you look underneath the surface.
 
 Output ONLY this JSON:
 
@@ -161,10 +204,12 @@ If APPROVING (the normal case):
   "angles_considered": {{
     "opportunity": {{"summary": "1-line OPPORTUNITY angle", "score": 8}},
     "insight":     {{"summary": "1-line INSIGHT angle",     "score": 5}},
-    "tutorial":    {{"summary": "1-line TUTORIAL angle",    "score": 6}}
+    "tutorial":    {{"summary": "1-line TUTORIAL angle",    "score": 6}},
+    "twist":       {{"summary": "1-line TWIST angle",       "score": 7}}
   }},
-  "chosen_template": "OPPORTUNITY",
-  "why_chosen": "1 sentence on why this angle wins over the other two",
+  "chosen_template": "OPPORTUNITY | INSIGHT | TUTORIAL | TWIST",
+  "why_chosen": "1 sentence on why this angle wins over the others",
+  "specifics_preserved": ["list of specific numbers/names/terms you kept from the source"],
   "title": "Short script title",
   "script": "Full script as one block of Hinglish text starting with 'Bhai'. No stage directions.",
   "cta_word": "Single ALL-CAPS English word relevant to the topic",
@@ -173,13 +218,14 @@ If APPROVING (the normal case):
   "notes_for_filming": "1-2 line b-roll / screen recording suggestion"
 }}
 
-If REJECTING (rare — only when all 3 score below 5):
+If REJECTING (rare — only when all 4 score below 5):
 {{
   "script_worth_making": false,
   "angles_considered": {{
     "opportunity": {{"summary": "...", "score": 3}},
     "insight":     {{"summary": "...", "score": 2}},
-    "tutorial":    {{"summary": "...", "score": 4}}
+    "tutorial":    {{"summary": "...", "score": 4}},
+    "twist":       {{"summary": "...", "score": 3}}
   }},
   "rejection_reason": "Why no angle reaches the bar",
   "alternative_angle": "What kind of follow-up news might unlock this story"
@@ -193,7 +239,7 @@ def _build_client(api_key: str | None = None) -> OpenAI:
     return OpenAI(api_key=key)
 
 
-VALID_TEMPLATES = {"OPPORTUNITY", "INSIGHT", "TUTORIAL"}
+VALID_TEMPLATES = {"OPPORTUNITY", "INSIGHT", "TUTORIAL", "TWIST"}
 
 
 def generate_script(
@@ -204,7 +250,7 @@ def generate_script(
 ) -> dict:
     """Generate a full reel script for one story. Adds 'script' subdict to the story.
 
-    template_override: if set to OPPORTUNITY/INSIGHT/TUTORIAL, forces that template
+    template_override: if set to OPPORTUNITY/INSIGHT/TUTORIAL/TWIST, forces that template
     regardless of what the brainstorm would have picked.
     """
     client = client or _build_client(api_key)

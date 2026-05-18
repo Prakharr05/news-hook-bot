@@ -209,6 +209,23 @@ INSIGHT_KEYWORDS = {
     "encryption": 4, "obfuscation": 4, "watermark": 4,
 }
 
+TWIST_KEYWORDS = {
+    # Trends, comparisons, regulations with counterintuitive consequences
+    "rule": 4, "rules": 3, "new policy": 4, "policy": 2,
+    "mandate": 4, "mandates": 4, "mandated": 4,
+    "ruling": 4, "verdict": 4, "court": 3, "supreme court": 5,
+    "loophole": 6, "exception": 4, "exempt": 4, "exempted": 4,
+    "implication": 4, "consequence": 4, "side effect": 5,
+    "ironic": 5, "ironically": 5, "contrary": 4, "counterintuitive": 6,
+    "actually": 3, "turns out": 4, "but wait": 5,
+    "compared to": 3, "vs ": 3, "overtakes": 5, "overtook": 5,
+    "first time": 4, "fell behind": 5, "lost lead": 5, "lost ground": 4,
+    "slumps": 4, "slumping": 4, "behind": 2,
+    "shift": 3, "trend": 3, "reverses": 4, "reversal": 4,
+    "however": 2, "but ": 1, "though": 2,
+    "china": 3, "beijing": 3,   # boost TWIST for China-rule type stories
+}
+
 OPPORTUNITY_KEYWORDS = {
     # Already covered well in HOOK_KEYWORDS — listed here for tagging
     "commission": 6, "commissions": 6, "takes a cut": 6, "fees": 4, "fee": 4,
@@ -227,7 +244,7 @@ OPPORTUNITY_KEYWORDS = {
 def _template_lean(text: str) -> tuple[str, dict[str, int]]:
     """Return the template this story leans toward + per-template scores."""
     text_lower = text.lower()
-    scores = {"TUTORIAL": 0, "INSIGHT": 0, "OPPORTUNITY": 0}
+    scores = {"TUTORIAL": 0, "INSIGHT": 0, "OPPORTUNITY": 0, "TWIST": 0}
     for kw, w in TUTORIAL_KEYWORDS.items():
         if kw in text_lower:
             scores["TUTORIAL"] += w
@@ -237,6 +254,9 @@ def _template_lean(text: str) -> tuple[str, dict[str, int]]:
     for kw, w in OPPORTUNITY_KEYWORDS.items():
         if kw in text_lower:
             scores["OPPORTUNITY"] += w
+    for kw, w in TWIST_KEYWORDS.items():
+        if kw in text_lower:
+            scores["TWIST"] += w
     # Default lean if nothing strong matches
     winner = max(scores, key=scores.get)
     if scores[winner] < 3:
@@ -282,10 +302,12 @@ def rank(stories: list[dict], top_n: int = 8, min_score: int = 6) -> list[dict]:
     scored.sort(key=lambda s: s["hook_score"], reverse=True)
 
     # Target counts per template — scaled to top_n
+    # For top_n=8: 3 OPPORTUNITY + 2 INSIGHT + 2 TUTORIAL + 1 TWIST
     target_per_template = {
         "OPPORTUNITY": max(1, top_n * 3 // 8),
-        "INSIGHT":     max(1, top_n * 3 // 8),
+        "INSIGHT":     max(1, top_n * 2 // 8),
         "TUTORIAL":    max(1, top_n * 2 // 8),
+        "TWIST":       max(1, top_n * 1 // 8),
     }
     # Make sure the targets sum to top_n (rounding can leave slots empty)
     while sum(target_per_template.values()) < top_n:

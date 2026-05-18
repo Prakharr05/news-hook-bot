@@ -42,8 +42,12 @@ def _format_story(idx: int, s: dict) -> str:
     url = s["url"]   # URLs go inside () in MD links, not escaped
 
     # Emoji per template lean for quick scanning
-    lean_emoji = {"OPPORTUNITY": "💼", "INSIGHT": "🧠", "TUTORIAL": "🛠️"}.get(
-        s.get("template_lean", ""), "📰")
+    lean_emoji = {
+        "OPPORTUNITY": "💼",
+        "INSIGHT": "🧠",
+        "TUTORIAL": "🛠️",
+        "TWIST": "🌀",
+    }.get(s.get("template_lean", ""), "📰")
 
     parts = [
         f"*{idx}\\. {lean_emoji} {title}*",
@@ -152,7 +156,7 @@ def send_scripts(stories: list[dict], chat_id: str | None = None) -> None:
             alt = _escape_md(scr.get("alternative_angle", "—"))
             angles = scr.get("angles_considered", {})
             angles_text = ""
-            for k in ("opportunity", "insight", "tutorial"):
+            for k in ("opportunity", "insight", "tutorial", "twist"):
                 a = angles.get(k, {})
                 if a:
                     angles_text += f"\n• *{k.upper()}* \\({a.get('score', '?')}/10\\): {_escape_md(a.get('summary', ''))}"
@@ -176,7 +180,7 @@ def send_scripts(stories: list[dict], chat_id: str | None = None) -> None:
         # Show the brainstorm so you see the rejected angles too
         angles = scr.get("angles_considered", {})
         angles_text = ""
-        for k in ("opportunity", "insight", "tutorial"):
+        for k in ("opportunity", "insight", "tutorial", "twist"):
             a = angles.get(k, {})
             if a:
                 marker = "✅" if k.upper() == scr.get("chosen_template", "") else "  "
@@ -188,6 +192,15 @@ def send_scripts(stories: list[dict], chat_id: str | None = None) -> None:
             f"_{source} · {template} · ~{secs}s · {words} words_\n"
             f"{angles_text}\n\n"
             f"```\n{scr.get('script', '')}\n```\n\n"
+        )
+
+        # Show what specifics the LLM claims to have preserved (quality signal)
+        specifics = scr.get("specifics_preserved") or []
+        if specifics:
+            specs_text = ", ".join(_escape_md(str(x)) for x in specifics[:6])
+            block += f"📌 *Specifics kept:* {specs_text}\n"
+
+        block += (
             f"🔁 *CTA word:* `{scr.get('cta_word', '?')}`\n"
             f"🎥 *Filming:* {notes}\n"
             f"[Read source]({url})"
