@@ -16,19 +16,28 @@ RSS_FEEDS = [
     {"name": "VentureBeat AI",   "url": "https://venturebeat.com/category/ai/feed/",          "category": "ai_research"},
     {"name": "The Decoder",      "url": "https://the-decoder.com/feed/",                      "category": "ai_research"},
 
-    # Platform / policy / leaks
+    # Platform / policy / leaks (global)
     {"name": "9to5Mac",          "url": "https://9to5mac.com/feed/",                          "category": "platform"},
     {"name": "9to5Google",       "url": "https://9to5google.com/feed/",                       "category": "platform"},
 
-    # ─── INDIAN sources — high weight for EZ Snippet-style content ───
-    # These surface the Zomato-commission, UPI-rule, RBI-mandate type stories.
+    # ─── INDIAN tech / business news ───
     {"name": "Inc42",            "url": "https://inc42.com/feed/",                            "category": "india_tech"},
     {"name": "YourStory",        "url": "https://yourstory.com/feed",                         "category": "india_tech"},
-    {"name": "Entrackr",         "url": "https://entrackr.com/feed/",                         "category": "india_tech"},
     {"name": "MoneyControl Tech","url": "https://www.moneycontrol.com/rss/technology.xml",    "category": "india_tech"},
     {"name": "The Ken (free)",   "url": "https://the-ken.com/feed/",                          "category": "india_tech"},
     {"name": "ET Tech",          "url": "https://economictimes.indiatimes.com/tech/rssfeeds/13357270.cms", "category": "india_tech"},
-    {"name": "Medianama",        "url": "https://www.medianama.com/feed/",                    "category": "india_policy"},
+
+    # ─── INDIAN tech POLICY & GOVERNMENT — for senior's feed ───
+    # These cover MeitY, TRAI, RBI, SEBI, DPDP Act, AI regulation, fintech rules, data protection.
+    {"name": "Medianama",        "url": "https://www.medianama.com/feed/",                    "category": "india_tech_policy"},
+    {"name": "MediaNama Reg",    "url": "https://www.medianama.com/category/regulation/feed/", "category": "india_tech_policy"},
+    {"name": "ET Telecom",       "url": "https://telecom.economictimes.indiatimes.com/rss/topstories", "category": "india_tech_policy"},
+    {"name": "BW Legal World",   "url": "https://bwlegalworld.com/rss/category/technology",   "category": "india_tech_policy"},
+    {"name": "Internet Freedom", "url": "https://internetfreedom.in/rss/",                    "category": "india_tech_policy"},
+    {"name": "ET Fintech",       "url": "https://bfsi.economictimes.indiatimes.com/rss/fintech", "category": "india_tech_policy"},
+
+    # ─── AI policy specifically (India-relevant where possible) ───
+    {"name": "AnalyticsIndiaMag","url": "https://analyticsindiamag.com/feed/",                "category": "india_ai_policy"},
 ]
 
 # Hacker News & Reddit are pulled via JSON APIs in fetcher.py

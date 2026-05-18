@@ -4,8 +4,12 @@ Multi-user config.
 Users are loaded from JSON in the USERS env var. Format:
   [
     {"name": "Prakhar", "chat_id": "987654321", "openai_key": "sk-..."},
-    {"name": "Senior",  "chat_id": "123456789", "openai_key": "sk-..."}
+    {"name": "Senior",  "chat_id": "123456789", "openai_key": "sk-...",
+     "feed_filter": ["india_tech_policy", "india_ai_policy"]}
   ]
+
+`feed_filter` is OPTIONAL. If present, the user only receives stories whose source
+category matches one of the filter values. If omitted, user sees all stories.
 
 This keeps user info OUT of source control. In Vercel/GitHub Actions, paste the JSON
 as a single-line env var.
@@ -48,3 +52,17 @@ def get_user_by_chat_id(chat_id: int | str) -> Optional[dict]:
         if str(u.get("chat_id")) == chat_id:
             return u
     return None
+
+
+def filter_stories_for_user(stories: list[dict], user: dict) -> list[dict]:
+    """
+    Return only the stories matching the user's feed_filter.
+
+    If user has no feed_filter, returns all stories unchanged.
+    If user has feed_filter=["india_tech_policy"], returns only those.
+    """
+    feed_filter = user.get("feed_filter")
+    if not feed_filter:
+        return stories
+    allowed = set(feed_filter)
+    return [s for s in stories if s.get("category") in allowed]

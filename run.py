@@ -58,45 +58,96 @@ def cmd_digest(args) -> int:
     raw = asyncio.run(fetcher.fetch_all())
     log.info("Fetched %d raw stories", len(raw))
 
-    log.info("Deduping and ranking…")
-    top = scorer.rank(raw, top_n=args.top, min_score=args.min_score)
-    log.info("Selected %d top stories", len(top))
+    # Rank a WIDER pool than top_n. We re-rank per user with their feed_filter,
+    # so the senior's govt-only feed still has 8 stories even after filtering.
+    log.info("Deduping and scoring full pool…")
+    pool = scorer.rank(raw, top_n=args.top * 4, min_score=args.min_score)
+    log.info("Wider pool: %d stories", len(pool))
 
-    if not args.no_llm and top:
-        log.info("Generating hooks with %s…", llm.MODEL)
-        # Use the bot owner's key for hooks (your key, since you're paying for the digest)
-        top = llm.generate_hooks(top)
-        top.sort(key=lambda s: s["hook_score"] + s.get("llm_confidence", 0) * 2, reverse=True)
-
-    # Local file cache (used by `python run.py script` CLI fallback)
-    DATA_DIR.mkdir(exist_ok=True)
-    LAST_DIGEST.write_text(json.dumps(top, indent=2, default=str))
-    log.info("Cached digest locally to %s", LAST_DIGEST)
-
-    # Persist to Upstash so the webhook can read it
-    try:
-        from src import storage
-        storage.save_digest(top)
-    except Exception as e:
-        log.warning("Could not save digest to Upstash (webhook won't work): %s", e)
-
-    if args.save:
-        Path(args.save).write_text(json.dumps(top, indent=2, default=str))
-        log.info("Also saved to %s", args.save)
-
-    if args.dry_run:
-        print(json.dumps(top, indent=2, default=str))
-        return 0
-
-    # Broadcast to all configured users (you + senior). Falls back to env if none.
+    # Load users; if none configured, fall back to single-user logic
     from src import users as users_mod
     user_list = users_mod.load_users()
-    if user_list:
-        log.info("Broadcasting digest to %d user(s)…", len(user_list))
-        telegram.broadcast(top, user_list)
-    else:
-        log.info("Sending digest to single user via env vars…")
+
+    if not user_list:
+        # Single-user mode (existing behavior, no filtering)
+        top = pool[:args.top]
+        if not args.no_llm and top:
+            log.info("Generating hooks with %s…", llm.MODEL)
+            top = llm.generate_hooks(top)
+            top.sort(key=lambda s: s["hook_score"] + s.get("llm_confidence", 0) * 2, reverse=True)
+
+        DATA_DIR.mkdir(exist_ok=True)
+        LAST_DIGEST.write_text(json.dumps(top, indent=2, default=str))
+        try:
+            from src import storage
+            storage.save_digest(top)
+        except Exception as e:
+            log.warning("Could not save digest to Upstash: %s", e)
+
+        if args.save:
+            Path(args.save).write_text(json.dumps(top, indent=2, default=str))
+        if args.dry_run:
+            print(json.dumps(top, indent=2, default=str))
+            return 0
         telegram.send(top)
+        log.info("Done.")
+        return 0
+
+    # Multi-user mode: each user gets their own top_n after filtering
+    per_user_digests: dict[str, list[dict]] = {}
+    union_stories: dict[str, dict] = {}   # by url, to dedupe across users for LLM hook gen
+
+    for u in user_list:
+        filtered = users_mod.filter_stories_for_user(pool, u)
+        user_top = filtered[:args.top]
+        per_user_digests[u["chat_id"]] = user_top
+        for s in user_top:
+            union_stories[s["url"]] = s
+        log.info("User %s: %d stories after filter %s",
+                 u.get("name", "?"), len(user_top), u.get("feed_filter", "none"))
+
+    # Generate hooks ONCE for the union of all users' top stories
+    all_stories = list(union_stories.values())
+    if not args.no_llm and all_stories:
+        log.info("Generating hooks with %s for %d unique stories…", llm.MODEL, len(all_stories))
+        llm.generate_hooks(all_stories)   # mutates in-place; references in per_user_digests update too
+
+    # Re-sort each user's digest by score+confidence
+    for chat_id, stories_list in per_user_digests.items():
+        stories_list.sort(key=lambda s: s["hook_score"] + s.get("llm_confidence", 0) * 2, reverse=True)
+
+    # Local cache uses YOUR (first user's) digest for `python run.py script` CLI fallback
+    DATA_DIR.mkdir(exist_ok=True)
+    your_digest = per_user_digests.get(user_list[0]["chat_id"], [])
+    LAST_DIGEST.write_text(json.dumps(your_digest, indent=2, default=str))
+
+    # Upstash needs to hold per-user digests so the webhook knows what to read.
+    # Store as a dict {chat_id: stories} under a single key.
+    try:
+        from src import storage
+        # Old digest format was a list; new format is a dict keyed by chat_id.
+        # save_digest will accept either.
+        storage.save_digest({chat_id: stories for chat_id, stories in per_user_digests.items()})
+    except Exception as e:
+        log.warning("Could not save digest to Upstash: %s", e)
+
+    if args.save:
+        Path(args.save).write_text(json.dumps(per_user_digests, indent=2, default=str))
+
+    if args.dry_run:
+        print(json.dumps(per_user_digests, indent=2, default=str))
+        return 0
+
+    # Send each user their personalized digest
+    log.info("Sending personalized digests to %d users…", len(user_list))
+    for u in user_list:
+        user_digest = per_user_digests.get(u["chat_id"], [])
+        try:
+            telegram.send(user_digest, chat_id=u["chat_id"])
+            log.info("Sent %d stories to %s", len(user_digest), u.get("name", "?"))
+        except Exception as e:
+            log.error("Failed to send digest to %s: %s", u.get("name", "?"), e)
+
     log.info("Done.")
     return 0
 

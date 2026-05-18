@@ -70,7 +70,7 @@ def handle_command(text: str, user: dict) -> None:
         return
 
     if text == "/digest":
-        stories = storage.load_digest()
+        stories = storage.load_digest(chat_id=chat_id)
         if not stories:
             _send_text(chat_id, "No digest cached yet\\. Wait for the next 8:30 AM run\\.")
             return
@@ -109,7 +109,7 @@ def handle_command(text: str, user: dict) -> None:
             )
             return
 
-        stories = storage.load_digest()
+        stories = storage.load_digest(chat_id=chat_id)
         if not stories:
             _send_text(chat_id, "No digest cached\\. Wait for the next daily run\\.")
             return

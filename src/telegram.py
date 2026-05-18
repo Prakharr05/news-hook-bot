@@ -123,15 +123,25 @@ def send(stories: list[dict], chat_id: str | None = None) -> None:
 
 
 def broadcast(stories: list[dict], users: list[dict]) -> None:
-    """Send the same digest to multiple users. Each user has their own chat_id."""
+    """Send digest to multiple users. Each user has their own chat_id + optional feed_filter.
+
+    If a user has feed_filter set, only stories from those categories are sent.
+    Otherwise the user sees all stories.
+    """
     if not users:
         logger.warning("broadcast: no users configured, falling back to env TELEGRAM_CHAT_ID")
         send(stories)
         return
+    from src import users as users_mod
     for u in users:
         try:
-            send(stories, chat_id=u["chat_id"])
-            logger.info("Sent digest to %s (chat %s)", u.get("name", "?"), u["chat_id"])
+            user_stories = users_mod.filter_stories_for_user(stories, u)
+            if not user_stories and u.get("feed_filter"):
+                logger.info("User %s has feed_filter %s but no matching stories today",
+                            u.get("name", "?"), u.get("feed_filter"))
+            send(user_stories, chat_id=u["chat_id"])
+            logger.info("Sent %d stories to %s (chat %s)",
+                        len(user_stories), u.get("name", "?"), u["chat_id"])
         except Exception as e:
             logger.error("Failed to send digest to %s: %s", u.get("name", "?"), e)
 
