@@ -39,3 +39,7 @@ digest_*.json
 # OS
 .DS_Store
 desktop.ini
+.vercel
+
+
+data/
