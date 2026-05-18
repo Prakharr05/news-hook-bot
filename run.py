@@ -64,13 +64,21 @@ def cmd_digest(args) -> int:
 
     if not args.no_llm and top:
         log.info("Generating hooks with %s…", llm.MODEL)
+        # Use the bot owner's key for hooks (your key, since you're paying for the digest)
         top = llm.generate_hooks(top)
         top.sort(key=lambda s: s["hook_score"] + s.get("llm_confidence", 0) * 2, reverse=True)
 
-    # Always cache the digest locally so `script` command can use it later
+    # Local file cache (used by `python run.py script` CLI fallback)
     DATA_DIR.mkdir(exist_ok=True)
     LAST_DIGEST.write_text(json.dumps(top, indent=2, default=str))
-    log.info("Cached digest to %s", LAST_DIGEST)
+    log.info("Cached digest locally to %s", LAST_DIGEST)
+
+    # Persist to Upstash so the webhook can read it
+    try:
+        from src import storage
+        storage.save_digest(top)
+    except Exception as e:
+        log.warning("Could not save digest to Upstash (webhook won't work): %s", e)
 
     if args.save:
         Path(args.save).write_text(json.dumps(top, indent=2, default=str))
@@ -80,8 +88,15 @@ def cmd_digest(args) -> int:
         print(json.dumps(top, indent=2, default=str))
         return 0
 
-    log.info("Sending digest to Telegram…")
-    telegram.send(top)
+    # Broadcast to all configured users (you + senior). Falls back to env if none.
+    from src import users as users_mod
+    user_list = users_mod.load_users()
+    if user_list:
+        log.info("Broadcasting digest to %d user(s)…", len(user_list))
+        telegram.broadcast(top, user_list)
+    else:
+        log.info("Sending digest to single user via env vars…")
+        telegram.send(top)
     log.info("Done.")
     return 0
 
@@ -110,7 +125,10 @@ def cmd_script(args) -> int:
         selected = [stories[idx]]
         log.info("Generating script for story #%d: %s", args.index, selected[0]["title"][:80])
 
-    selected = script_gen.generate_scripts(selected)
+    selected = script_gen.generate_scripts(
+        selected,
+        template_override=args.template.upper() if args.template else None,
+    )
 
     for i, s in enumerate(selected, 1):
         scr = s.get("script", {}) or {}
@@ -185,6 +203,10 @@ def main() -> int:
                    help="generate scripts for every story in digest")
     s.add_argument("--send",  action="store_true",
                    help="also send generated script(s) to Telegram")
+    s.add_argument("--template", type=str, default=None,
+                   choices=["opportunity", "insight", "tutorial",
+                            "OPPORTUNITY", "INSIGHT", "TUTORIAL"],
+                   help="force a specific template instead of letting LLM pick")
 
     args = ap.parse_args()
     if args.cmd is None:

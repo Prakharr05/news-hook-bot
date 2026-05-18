@@ -36,13 +36,18 @@ def _format_story(idx: int, s: dict) -> str:
     pivot = _escape_md(s.get("pivot", "") or "")
     angle = _escape_md(s.get("tech_angle", "") or "(no angle generated)")
     payoff = _escape_md((s.get("payoff_structure", "") or "").upper())
+    lean = _escape_md(s.get("template_lean", "") or "")
     score = s.get("hook_score", 0)
     conf = s.get("llm_confidence", 0)
     url = s["url"]   # URLs go inside () in MD links, not escaped
 
+    # Emoji per template lean for quick scanning
+    lean_emoji = {"OPPORTUNITY": "💼", "INSIGHT": "🧠", "TUTORIAL": "🛠️"}.get(
+        s.get("template_lean", ""), "📰")
+
     parts = [
-        f"*{idx}\\. {title}*",
-        f"_{source} · score {score} · conf {conf}/10_",
+        f"*{idx}\\. {lean_emoji} {title}*",
+        f"_{source} · {lean} · score {score} · conf {conf}/10_",
         "",
         f"🎬 *Hook:* {hook}",
     ]
@@ -74,46 +79,63 @@ def format_digest(stories: list[dict]) -> list[str]:
     return chunks
 
 
-def _send_chunks(chunks: list[str]) -> None:
-    """Shared helper used by both send() and send_scripts()."""
-    token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    chat_id = os.environ.get("TELEGRAM_CHAT_ID")
-    if not token or not chat_id:
-        raise RuntimeError("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set")
+def _send_chunks(chunks: list[str], chat_id: str | None = None, bot_token: str | None = None) -> None:
+    """Shared helper used by both send() and send_scripts().
+
+    chat_id and bot_token can be overridden per call (for multi-user broadcasts).
+    Falls back to env vars otherwise.
+    """
+    token = bot_token or os.environ.get("TELEGRAM_BOT_TOKEN")
+    cid = chat_id or os.environ.get("TELEGRAM_CHAT_ID")
+    if not token or not cid:
+        raise RuntimeError("Telegram bot token and chat_id required")
 
     url = API_BASE.format(token=token)
     with httpx.Client(timeout=20.0) as client:
         for chunk in chunks:
             payload = {
-                "chat_id": chat_id,
+                "chat_id": cid,
                 "text": chunk,
                 "parse_mode": "MarkdownV2",
                 "disable_web_page_preview": True,
             }
             r = client.post(url, json=payload)
             if r.status_code != 200:
-                logger.error("Telegram send failed: %s %s", r.status_code, r.text)
-                # Retry once without markdown if it's a parse error
+                logger.error("Telegram send failed (chat %s): %s %s", cid, r.status_code, r.text)
                 payload.pop("parse_mode", None)
                 payload["text"] = chunk.replace("\\", "")
                 client.post(url, json=payload)
-            time.sleep(0.5)   # be nice to the Telegram rate limit
-    logger.info("Sent %d message chunks to Telegram", len(chunks))
+            time.sleep(0.5)
+    logger.info("Sent %d chunks to Telegram chat %s", len(chunks), cid)
 
 
-def send(stories: list[dict]) -> None:
-    """Send the daily digest (hooks + payoffs, not full scripts)."""
+def send(stories: list[dict], chat_id: str | None = None) -> None:
+    """Send digest. If chat_id given, sends only there; otherwise uses env var."""
     if not stories:
         chunks = [_escape_md("No high-score news today — try lowering min_score.")]
     else:
         chunks = format_digest(stories)
-    _send_chunks(chunks)
+    _send_chunks(chunks, chat_id=chat_id)
 
 
-def send_scripts(stories: list[dict]) -> None:
-    """Send full reel scripts. One Telegram message per script for easy copy-paste."""
+def broadcast(stories: list[dict], users: list[dict]) -> None:
+    """Send the same digest to multiple users. Each user has their own chat_id."""
+    if not users:
+        logger.warning("broadcast: no users configured, falling back to env TELEGRAM_CHAT_ID")
+        send(stories)
+        return
+    for u in users:
+        try:
+            send(stories, chat_id=u["chat_id"])
+            logger.info("Sent digest to %s (chat %s)", u.get("name", "?"), u["chat_id"])
+        except Exception as e:
+            logger.error("Failed to send digest to %s: %s", u.get("name", "?"), e)
+
+
+def send_scripts(stories: list[dict], chat_id: str | None = None) -> None:
+    """Send full reel scripts. Optionally to a specific chat (used by the webhook)."""
     if not stories:
-        _send_chunks([_escape_md("No scripts to send.")])
+        _send_chunks([_escape_md("No scripts to send.")], chat_id=chat_id)
         return
 
     chunks: list[str] = []
@@ -172,4 +194,4 @@ def send_scripts(stories: list[dict]) -> None:
         )
         chunks.append(block)
 
-    _send_chunks(chunks)
+    _send_chunks(chunks, chat_id=chat_id)

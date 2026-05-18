@@ -171,41 +171,160 @@ def _score_text(text: str) -> tuple[int, list[str]]:
     return score, matched
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# TEMPLATE LEANING — predicts which EZ Snippet template a story fits best.
+# This is SEPARATE from hook_score; it just predicts the script shape.
+# Used to enforce digest diversity (roughly equal TUTORIAL/INSIGHT/OPPORTUNITY).
+# ─────────────────────────────────────────────────────────────────────────────
+
+TUTORIAL_KEYWORDS = {
+    # New tool / feature releases the viewer can use TODAY
+    "launches": 3, "launched": 3, "released": 3, "release": 2,
+    "available now": 4, "rolling out": 3, "rolled out": 3,
+    "new feature": 4, "new tool": 4, "hidden feature": 5,
+    "free tier": 4, "free version": 4, "no signup": 5,
+    "open source": 3, "open-source": 3, "github": 2,
+    "extension": 3, "plugin": 3, "chrome extension": 4,
+    "api": 2, "sdk": 2, "library": 2,
+    "tutorial": 3, "step-by-step": 3, "how to": 2,
+    "trick": 4, "hack": 4, "workaround": 4,
+    "shortcut": 3, "automation": 3,
+    "skill": 3, "prompt": 3, "claude code": 3, "agent": 2,
+}
+
+INSIGHT_KEYWORDS = {
+    # Mechanism / algorithm / "how it works" stories
+    "algorithm": 5, "algorithms": 5, "model": 2, "neural": 4, "ml model": 4,
+    "detection": 5, "detect": 4, "detects": 4,
+    "ranking": 4, "recommendation": 4, "recommends": 3,
+    "fingerprint": 5, "fingerprinting": 5,
+    "behavioral": 4, "biometric": 5, "biometrics": 5,
+    "graph neural": 6, "transformer": 4, "attention": 3,
+    "exploit": 5, "vulnerability": 5, "zero day": 6, "zero-day": 6,
+    "reverse engineer": 5, "reverse-engineered": 5,
+    "moderation": 4, "shadow ban": 5, "shadowban": 5,
+    "internally": 3, "behind the scenes": 4, "how it works": 4,
+    "investigation reveals": 5, "researchers found": 4,
+    "inside ": 4, "deep dive": 4,
+    "encryption": 4, "obfuscation": 4, "watermark": 4,
+}
+
+OPPORTUNITY_KEYWORDS = {
+    # Already covered well in HOOK_KEYWORDS — listed here for tagging
+    "commission": 6, "commissions": 6, "takes a cut": 6, "fees": 4, "fee": 4,
+    "hidden cost": 6, "market": 3, "industry": 3, "broken": 3,
+    "crore": 4, "lakh": 4, "billion": 3, "trillion": 4,
+    "gap": 4, "opportunity": 5, "untapped": 5,
+    "regulation": 4, "regulator": 4, "mandate": 4, "mandated": 4,
+    "crackdown": 4, "ban": 3, "banned": 3,
+    "strike": 4, "protest": 3, "boycott": 4,
+    "lawsuit": 4, "sued": 4, "antitrust": 4, "fine": 3, "fined": 3,
+    "monopoly": 5, "monopol": 5, "exploit": 3,
+    "raised": -3,   # funding news is OPPORTUNITY-looking but actually boring
+}
+
+
+def _template_lean(text: str) -> tuple[str, dict[str, int]]:
+    """Return the template this story leans toward + per-template scores."""
+    text_lower = text.lower()
+    scores = {"TUTORIAL": 0, "INSIGHT": 0, "OPPORTUNITY": 0}
+    for kw, w in TUTORIAL_KEYWORDS.items():
+        if kw in text_lower:
+            scores["TUTORIAL"] += w
+    for kw, w in INSIGHT_KEYWORDS.items():
+        if kw in text_lower:
+            scores["INSIGHT"] += w
+    for kw, w in OPPORTUNITY_KEYWORDS.items():
+        if kw in text_lower:
+            scores["OPPORTUNITY"] += w
+    # Default lean if nothing strong matches
+    winner = max(scores, key=scores.get)
+    if scores[winner] < 3:
+        winner = "OPPORTUNITY"   # safe default per system prompt rules
+    return winner, scores
+
+
 def score(stories: list[dict]) -> list[dict]:
-    """Add a 'hook_score' field to each story."""
+    """Add 'hook_score', 'template_lean', 'template_scores' to each story."""
     for s in stories:
-        # Title weighted more than summary — headline = the actual hook
         title_score, title_kws = _score_text(s["title"])
         summary_score, _ = _score_text(s["summary"])
 
-        # Source category bonus — Indian + policy sources match the EZ formula better
         category_bonus = {
-            "india_tech":   8,    # Inc42, YourStory, ET Tech etc.
-            "india_policy": 10,   # Medianama — pure regulation gold
+            "india_tech":   8,
+            "india_policy": 10,
             "platform":     3,
         }.get(s.get("category", ""), 0)
 
         s["hook_score"] = title_score * 2 + summary_score + category_bonus
         s["matched_keywords"] = title_kws[:5]
+
+        # Template prediction — combines title + summary, title weighted more
+        combined = (s["title"] + " ") * 2 + s["summary"]
+        lean, lean_scores = _template_lean(combined)
+        s["template_lean"] = lean
+        s["template_scores"] = lean_scores
     return stories
 
 
 def rank(stories: list[dict], top_n: int = 8, min_score: int = 6) -> list[dict]:
-    """Sort by score desc, keep top N above min_score, ensure source diversity."""
+    """
+    Rank with two diversity guarantees:
+    1. Max 2 stories per source (so the digest isn't 'TechCrunch x8')
+    2. Template diversity — try to fill a quota of each template
+
+    Target distribution for top_n=8: 3 OPPORTUNITY + 3 INSIGHT + 2 TUTORIAL
+    (slight bias to opportunity since it's the default fallback). If not enough
+    of one template exists, the remaining slots overflow to the highest-scoring
+    stories of any template.
+    """
     scored = score(dedupe(stories))
     scored.sort(key=lambda s: s["hook_score"], reverse=True)
 
-    # diversity: cap 2 per source in the final cut, so the digest doesn't
-    # become "TechCrunch x8".
+    # Target counts per template — scaled to top_n
+    target_per_template = {
+        "OPPORTUNITY": max(1, top_n * 3 // 8),
+        "INSIGHT":     max(1, top_n * 3 // 8),
+        "TUTORIAL":    max(1, top_n * 2 // 8),
+    }
+    # Make sure the targets sum to top_n (rounding can leave slots empty)
+    while sum(target_per_template.values()) < top_n:
+        target_per_template["OPPORTUNITY"] += 1
+    template_count: dict[str, int] = {k: 0 for k in target_per_template}
     per_source_count: dict[str, int] = {}
     out: list[dict] = []
+
+    # Phase 1: Fill template quotas. Pick the top-scoring story for each template.
     for s in scored:
         if s["hook_score"] < min_score:
-            break
+            continue
         if per_source_count.get(s["source"], 0) >= 2:
             continue
+        lean = s.get("template_lean", "OPPORTUNITY")
+        if template_count[lean] >= target_per_template[lean]:
+            continue
         out.append(s)
+        template_count[lean] += 1
         per_source_count[s["source"]] = per_source_count.get(s["source"], 0) + 1
         if len(out) >= top_n:
             break
+
+    # Phase 2: Overflow — if any template didn't have enough stories,
+    # fill remaining slots with the next-highest-scoring stories regardless of template
+    if len(out) < top_n:
+        seen_urls = {s["url"] for s in out}
+        for s in scored:
+            if s["url"] in seen_urls:
+                continue
+            if s["hook_score"] < min_score:
+                continue
+            if per_source_count.get(s["source"], 0) >= 2:
+                continue
+            out.append(s)
+            per_source_count[s["source"]] = per_source_count.get(s["source"], 0) + 1
+            if len(out) >= top_n:
+                break
+
+    # Final sort by score so the highest-impact story is #1 regardless of template
+    out.sort(key=lambda s: s["hook_score"], reverse=True)
     return out

@@ -186,29 +186,54 @@ If REJECTING (rare — only when all 3 score below 5):
 }}"""
 
 
-def _build_client() -> OpenAI:
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY env var not set")
-    return OpenAI(api_key=api_key)
+def _build_client(api_key: str | None = None) -> OpenAI:
+    key = api_key or os.environ.get("OPENAI_API_KEY")
+    if not key:
+        raise RuntimeError("OPENAI_API_KEY env var not set (or pass api_key arg)")
+    return OpenAI(api_key=key)
 
 
-def generate_script(story: dict, client: OpenAI | None = None) -> dict:
-    """Generate a full reel script for one story. Adds 'script' subdict to the story."""
-    client = client or _build_client()
+VALID_TEMPLATES = {"OPPORTUNITY", "INSIGHT", "TUTORIAL"}
+
+
+def generate_script(
+    story: dict,
+    client: OpenAI | None = None,
+    api_key: str | None = None,
+    template_override: str | None = None,
+) -> dict:
+    """Generate a full reel script for one story. Adds 'script' subdict to the story.
+
+    template_override: if set to OPPORTUNITY/INSIGHT/TUTORIAL, forces that template
+    regardless of what the brainstorm would have picked.
+    """
+    client = client or _build_client(api_key)
+
+    # Build optional override instruction
+    override_instruction = ""
+    if template_override:
+        t = template_override.upper()
+        if t not in VALID_TEMPLATES:
+            raise ValueError(f"template_override must be one of {VALID_TEMPLATES}, got {t!r}")
+        override_instruction = (
+            f"\n\n⚠️ TEMPLATE OVERRIDE: The user has explicitly requested the {t} template. "
+            f"Still brainstorm all 3 angles for visibility, but write the final script using "
+            f"the {t} angle even if another scores higher. Set chosen_template to '{t}'."
+        )
+
     user_prompt = USER_PROMPT_TEMPLATE.format(
         title=story.get("title", ""),
         source=story.get("source", ""),
         summary=(story.get("summary", "") or "")[:600],
         hook=story.get("hook", ""),
         tech_angle=story.get("tech_angle", ""),
-        payoff_structure=story.get("payoff_structure", ""),
-    )
+    ) + override_instruction
+
     try:
         resp = client.chat.completions.create(
             model=MODEL,
             max_tokens=1200,
-            temperature=0.8,   # higher temp = more voice variation
+            temperature=0.8,
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": SYSTEM_PROMPT},
@@ -218,16 +243,22 @@ def generate_script(story: dict, client: OpenAI | None = None) -> dict:
         data = json.loads(resp.choices[0].message.content.strip())
         story["script"] = data
         logger.info("Generated %s script (%d words) for: %s",
-                    data.get("template"), data.get("word_count", 0), story["title"][:60])
+                    data.get("chosen_template", data.get("template")),
+                    data.get("word_count", 0),
+                    story["title"][:60])
     except Exception as e:
         logger.error("Script generation failed for '%s': %s", story["title"][:60], e)
         story["script"] = {"error": str(e)}
     return story
 
 
-def generate_scripts(stories: list[dict]) -> list[dict]:
-    """Generate scripts for multiple stories (used when you want top-N at once)."""
-    client = _build_client()
+def generate_scripts(
+    stories: list[dict],
+    api_key: str | None = None,
+    template_override: str | None = None,
+) -> list[dict]:
+    """Generate scripts for multiple stories with optional template override."""
+    client = _build_client(api_key)
     for s in stories:
-        generate_script(s, client)
+        generate_script(s, client=client, template_override=template_override)
     return stories
