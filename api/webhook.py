@@ -36,7 +36,8 @@ log = logging.getLogger("webhook")
 
 HELP_TEXT = (
     "🤖 *News Hook Bot commands:*\n\n"
-    "`/digest` — Re\\-send today's digest\n"
+    "`/digest` — Re\\-send today's top 8 digest\n"
+    "`/more` — Show up to 50 additional headlines \\(no hooks, just titles\\)\n"
     "`/script N` — Generate reel script for story \\#N \\(auto template\\)\n"
     "`/script N opportunity` — Force OPPORTUNITY framing\n"
     "`/script N insight` — Force INSIGHT framing\n"
@@ -62,7 +63,7 @@ def _send_text(chat_id: str, text: str) -> None:
 def handle_command(text: str, user: dict) -> None:
     """Route a slash-command. Sends reply via Telegram directly."""
     chat_id = user["chat_id"]
-    api_key = user.get("openai_key")
+    anthropic_key = user.get("anthropic_key")
     text = text.strip()
 
     if text in ("/start", "/help"):
@@ -75,6 +76,14 @@ def handle_command(text: str, user: dict) -> None:
             _send_text(chat_id, "No digest cached yet\\. Wait for the next 8:30 AM run\\.")
             return
         telegram.send(stories, chat_id=chat_id)
+        return
+
+    if text == "/more":
+        headlines = storage.load_more_pool(chat_id=chat_id)
+        if not headlines:
+            _send_text(chat_id, "No additional headlines cached yet\\. Wait for the next 8:30 AM run\\.")
+            return
+        telegram.send_more_headlines(headlines, chat_id=chat_id)
         return
 
     if text.startswith("/script"):
@@ -124,13 +133,13 @@ def handle_command(text: str, user: dict) -> None:
         ack_msg += "\\.\\.\\. \\(takes 10\\-20 sec\\)"
         _send_text(chat_id, ack_msg)
 
-        if not api_key:
-            _send_text(chat_id, "⚠️ No OpenAI key configured for your account\\. Contact admin\\.")
+        if not anthropic_key:
+            _send_text(chat_id, "⚠️ No Anthropic key configured for your account\\. Contact admin to add `anthropic_key` to your user record\\.")
             return
 
         try:
             story = stories[idx]
-            script_gen.generate_script(story, api_key=api_key, template_override=template_override)
+            script_gen.generate_script(story, api_key=anthropic_key, template_override=template_override)
             telegram.send_scripts([story], chat_id=chat_id)
         except Exception as e:
             log.exception("Script generation failed for chat %s", chat_id)
