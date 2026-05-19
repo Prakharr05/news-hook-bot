@@ -265,6 +265,39 @@ STUDENT_AUDIENCE_KEYWORDS = {
 # ─── VIRAL/TRENDING-INDIA BOOST KEYWORDS ───
 # These signal stories that engage Indian audiences regardless of topic.
 # Heavy weight because virality > niche relevance for top-of-funnel growth.
+# ─── EVENT / LAUNCH BOOST KEYWORDS ───
+# Major tech events, product launches, and high-engagement model releases.
+# These help global tech news compete with your Indian-trending focus without
+# dominating it. Designed so a typical I/O/keynote preview scores ~50-70 range.
+EVENT_KEYWORDS = {
+    # Annual tech events
+    "keynote": 5, "i/o": 6, "io 2026": 5, "wwdc": 5, "re:invent": 4,
+    "ignite": 3, "build conference": 3, "dev day": 4, "devday": 4,
+    "openai devday": 5, "google i/o": 6, "apple wwdc": 5, "ces 2026": 3,
+
+    # Launch / announcement verbs
+    "unveils": 4, "unveiled": 4, "launches": 3, "launched": 3,
+    "announces": 3, "announced": 3, "reveals": 3, "revealed": 3,
+    "rolls out": 3, "rolled out": 3, "debuts": 3,
+
+    # Major AI models and products (current and likely-imminent)
+    "gemini": 5, "gemini 3": 5, "gemini 4": 6, "gemini intelligence": 5,
+    "gpt-5": 6, "gpt 5": 6, "gpt-4.5": 4, "o1": 3, "o3": 4, "o4": 5,
+    "claude opus": 4, "claude sonnet": 3, "claude 5": 6,
+    "llama 4": 4, "llama 5": 5, "mistral": 3,
+    "grok": 3, "deepseek": 4, "qwen": 3,
+    "veo": 4, "sora": 5, "imagen": 3, "midjourney": 3,
+    "android 17": 4, "android xr": 4, "ios 27": 4,
+    "pixel 11": 3, "iphone 17": 4, "iphone 18": 5,
+
+    # Hot-topic releases that engage students
+    "vibe coding": 5, "ai studio": 4, "antigravity": 4,
+    "codex": 4, "copilot": 3, "cursor": 4, "windsurf": 4,
+    "agent mode": 4, "browser agent": 5, "computer use": 4,
+    "rag pipeline": 3, "fine-tune": 3, "open weights": 3, "open-source model": 4,
+}
+
+
 # ─── ENTERTAINMENT / GOSSIP PENALTY ───
 # These words signal celebrity/Bollywood/sports content that doesn't fit Prakhar's
 # tech-behind-trending format. Heavy negative weight to filter them out.
@@ -381,6 +414,17 @@ def score(stories: list[dict]) -> list[dict]:
             if kw in text_lower:
                 gossip_penalty += w   # already negative
 
+        # Event/launch boost — major tech events (I/O, WWDC), model launches (Gemini, GPT-5),
+        # and product reveals. Helps global tech news compete with Indian-trending focus.
+        event_boost = 0
+        event_matches: list[str] = []
+        for kw, w in EVENT_KEYWORDS.items():
+            if kw in text_lower:
+                event_boost += w
+                event_matches.append(kw)
+        # Cap to prevent runaway scoring on long articles mentioning many models
+        event_boost = min(event_boost, 25)
+
         # Small-deal penalty — funding rounds under $20M or 100 crore are press-release
         # noise (no narrative). Big rounds keep their natural score from crore/billion
         # keywords; this only suppresses the small ones.
@@ -422,13 +466,16 @@ def score(stories: list[dict]) -> list[dict]:
 
         s["hook_score"] = (
             title_score * 2 + summary_score + category_bonus
-            + viral_boost + student_boost + gossip_penalty + small_deal_penalty
+            + viral_boost + student_boost + event_boost
+            + gossip_penalty + small_deal_penalty
         )
         s["matched_keywords"] = title_kws[:5]
         if student_matches:
             s["student_keywords"] = student_matches[:5]
         if viral_matches:
             s["viral_keywords"] = viral_matches[:5]
+        if event_matches:
+            s["event_keywords"] = event_matches[:5]
 
         # Template prediction — combines title + summary, title weighted more
         combined = (s["title"] + " ") * 2 + s["summary"]
