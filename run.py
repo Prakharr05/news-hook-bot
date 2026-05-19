@@ -27,6 +27,7 @@ import argparse
 import asyncio
 import json
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -72,6 +73,17 @@ def cmd_digest(args) -> int:
     if not user_list:
         # Single-user mode (existing behavior, no filtering)
         top = pool[:args.top]
+        # Build /more pool from stories beyond top
+        more_pool = [
+            {
+                "title": s["title"],
+                "url": s["url"],
+                "source": s["source"],
+                "hook_score": s["hook_score"],
+                "template_lean": s.get("template_lean", ""),
+            }
+            for s in pool[args.top : args.top + 50]
+        ]
         if not args.no_llm and top:
             log.info("Generating hooks with %s…", llm.MODEL)
             top = llm.generate_hooks(top)
@@ -81,9 +93,13 @@ def cmd_digest(args) -> int:
         LAST_DIGEST.write_text(json.dumps(top, indent=2, default=str))
         try:
             from src import storage
-            storage.save_digest(top)
+            # In single-user mode, store under the TELEGRAM_CHAT_ID so /more works
+            single_chat_id = os.environ.get("TELEGRAM_CHAT_ID", "default")
+            storage.save_digest({single_chat_id: top})
+            storage.save_more_pool({single_chat_id: more_pool})
+            log.info("Single-user mode: saved digest + %d /more headlines", len(more_pool))
         except Exception as e:
-            log.warning("Could not save digest to Upstash: %s", e)
+            log.warning("Could not save to Upstash: %s", e)
 
         if args.save:
             Path(args.save).write_text(json.dumps(top, indent=2, default=str))
