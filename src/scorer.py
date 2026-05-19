@@ -301,6 +301,10 @@ def rank(stories: list[dict], top_n: int = 8, min_score: int = 6) -> list[dict]:
     scored = score(dedupe(stories))
     scored.sort(key=lambda s: s["hook_score"], reverse=True)
 
+    # Per-source cap scales with top_n. Top-8 digest: max 2 per source.
+    # /more pool (top_n ~58): max 6 per source so we have enough variety to fill.
+    source_cap = max(2, top_n // 10)
+
     # Target counts per template — scaled to top_n
     # For top_n=8: 3 OPPORTUNITY + 2 INSIGHT + 2 TUTORIAL + 1 TWIST
     target_per_template = {
@@ -320,7 +324,7 @@ def rank(stories: list[dict], top_n: int = 8, min_score: int = 6) -> list[dict]:
     for s in scored:
         if s["hook_score"] < min_score:
             continue
-        if per_source_count.get(s["source"], 0) >= 2:
+        if per_source_count.get(s["source"], 0) >= source_cap:
             continue
         lean = s.get("template_lean", "OPPORTUNITY")
         if template_count[lean] >= target_per_template[lean]:
@@ -340,7 +344,7 @@ def rank(stories: list[dict], top_n: int = 8, min_score: int = 6) -> list[dict]:
                 continue
             if s["hook_score"] < min_score:
                 continue
-            if per_source_count.get(s["source"], 0) >= 2:
+            if per_source_count.get(s["source"], 0) >= source_cap:
                 continue
             out.append(s)
             per_source_count[s["source"]] = per_source_count.get(s["source"], 0) + 1
