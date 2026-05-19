@@ -237,10 +237,10 @@ OPPORTUNITY_KEYWORDS = {
     "strike": 4, "protest": 3, "boycott": 4,
     "lawsuit": 4, "sued": 4, "antitrust": 4, "fine": 3, "fined": 3,
     "monopoly": 5, "monopol": 5, "exploit": 3,
-    # Funding news gets a small positive — signals real activity but most are boring.
-    # Let the LLM and trending-category quotas decide if it's filmable.
-    "raised": 1, "funding": 1, "series a": 1, "series b": 1, "series c": 1,
-    "valuation": 2, "unicorn": 3,
+    # Funding language — kept at near-zero so a press release alone doesn't dominate.
+    # Big rounds will surface via the crore/lakh/billion weights above.
+    # Series-letter keywords completely removed — too noisy.
+    "unicorn": 3,
 }
 
 # ─── STUDENT-AUDIENCE BOOST KEYWORDS ───
@@ -381,6 +381,35 @@ def score(stories: list[dict]) -> list[dict]:
             if kw in text_lower:
                 gossip_penalty += w   # already negative
 
+        # Small-deal penalty — funding rounds under $20M or 100 crore are press-release
+        # noise (no narrative). Big rounds keep their natural score from crore/billion
+        # keywords; this only suppresses the small ones.
+        small_deal_penalty = 0
+        is_funding_story = any(kw in text_lower for kw in
+                               ("raised", "funding", "series a", "series b", "series c"))
+        if is_funding_story:
+            # Extract any numeric amount in $M or crore
+            m = re.search(r"\$?\s*(\d+(?:\.\d+)?)\s*(million|m\b|crore|cr\b|billion|b\b)", text_lower)
+            if m:
+                amount = float(m.group(1))
+                unit = m.group(2)
+                # Normalize to USD millions: 1 billion = 1000M, 1 crore ≈ 0.12M
+                if unit.startswith("b"):
+                    usd_millions = amount * 1000
+                elif unit.startswith("cr") or unit == "crore":
+                    usd_millions = amount * 0.12
+                else:
+                    usd_millions = amount
+                # Threshold: under $20M = small deal, suppress heavily
+                if usd_millions < 20:
+                    small_deal_penalty = -12
+                elif usd_millions < 50:
+                    small_deal_penalty = -4
+                # 50M+ rounds keep natural score (they're genuinely interesting)
+            else:
+                # Funding story without a clear amount → probably small/vague, suppress
+                small_deal_penalty = -6
+
         # Soft tech-angle requirement for trending stories.
         # Trending stories need EITHER a viral signal (they're naturally high-engagement)
         # OR a tech keyword (so we can find an angle to teach). Pure entertainment/gossip
@@ -393,7 +422,7 @@ def score(stories: list[dict]) -> list[dict]:
 
         s["hook_score"] = (
             title_score * 2 + summary_score + category_bonus
-            + viral_boost + student_boost + gossip_penalty
+            + viral_boost + student_boost + gossip_penalty + small_deal_penalty
         )
         s["matched_keywords"] = title_kws[:5]
         if student_matches:
@@ -431,6 +460,14 @@ def rank(stories: list[dict], top_n: int = 8, min_score: int = 6) -> list[dict]:
     govt_count = 0
     tech_count = 0
 
+    # Cap funding-press-release stories to prevent them from dominating
+    # (a 4-keyword "raised Series A funding at $50M valuation" can score high)
+    funding_cap = max(1, top_n // 4)  # for top_n=8: max 2 funding stories
+    funding_count = 0
+    def is_funding(s: dict) -> bool:
+        t = (s.get("title", "") + " " + s.get("summary", "")).lower()
+        return any(k in t for k in ("raised", "funding round", "series a", "series b", "series c"))
+
     # Template quota inside each bucket (looser, will overflow if needed)
     target_per_template = {
         "OPPORTUNITY": max(1, top_n * 3 // 8),
@@ -450,6 +487,8 @@ def rank(stories: list[dict], top_n: int = 8, min_score: int = 6) -> list[dict]:
             continue
         if per_source_count.get(s["source"], 0) >= source_cap:
             continue
+        if is_funding(s) and funding_count >= funding_cap:
+            continue
         is_govt = s.get("category") in govt_categories
         if is_govt and govt_count >= govt_target:
             continue
@@ -462,6 +501,8 @@ def rank(stories: list[dict], top_n: int = 8, min_score: int = 6) -> list[dict]:
         out.append(s)
         template_count[lean] += 1
         per_source_count[s["source"]] = per_source_count.get(s["source"], 0) + 1
+        if is_funding(s):
+            funding_count += 1
         if is_govt:
             govt_count += 1
         else:
