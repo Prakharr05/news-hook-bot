@@ -1,19 +1,19 @@
 """
 Script generator — turns a single news story into a full EZ Snippet style script.
 
-Output structure (every script):
-  1. Hook   — user-state framed, starts with "Bhai", direct pain/aspiration callout
-  2. Bridge — promise of solution/reveal + "batata hu kaise" energy
-  3. Body   — either step-by-step (tutorial) OR numbered insights (mechanism/insight)
-  4. Payoff — specific concrete benefits the viewer gets
-  5. CTA    — "Comment karo [TOPIC_WORD] aur mai dm kardunga"
+Uses OpenAI gpt-4o for script generation. Prompt has been heavily tuned with
+calibration rules, 4-template brainstorm (incl. TWIST), and hook/body variety.
 
-Called on-demand for top stories (NOT every story in the daily digest, since each
-script generation costs ~5x a hook generation).
+Note: GPT-4o has a known bias toward over-scoring OPPORTUNITY angles even with
+explicit "max 4/10" rules. The reliable workaround is manual template override:
+  /script N insight    /script N twist    /script N tutorial    /script N opportunity
 
-Usage:
-    python run.py script --story-id 3
-    python run.py script --title "Instagram bot purge"
+When override is used, the LLM respects it. Auto-pick is best-effort.
+
+Each user uses their own OPENAI_API_KEY (so they pay for their scripts).
+Daily hooks also use OpenAI (gpt-4o-mini) — see src/llm.py.
+
+Cost: ~₹4-6 per script at gpt-4o pricing ($2.50/M input, $10/M output).
 """
 from __future__ import annotations
 import json
@@ -24,13 +24,59 @@ from openai import OpenAI
 
 logger = logging.getLogger(__name__)
 
-# For scripts, default to gpt-4o (better voice mimicry).
-# Override with SCRIPT_MODEL env var if you want to test gpt-4o-mini.
+# GPT-4o for scripts (better than gpt-4o-mini at multi-step reasoning).
+# Override with SCRIPT_MODEL env var if you want to test other models.
 MODEL = os.environ.get("SCRIPT_MODEL", "gpt-4o")
 
 SYSTEM_PROMPT = """You write Instagram Reel scripts for Prakhar in the EXACT voice of EZ Snippet (Neeraj Walia) — Indian audience, Hinglish, conversational, warm.
 
 You output only valid JSON, no markdown fences, no preamble.
+
+# 🎯 AUDIENCE CONTEXT — read this first, it shapes everything else
+
+Prakhar's viewers are **Indian engineering/CS students** (mostly final-year B.Tech, placement-focused, learning AI/dev/coding skills, aspiring to land tech roles or build a side project). They are NOT founders, NOT business owners, NOT investors.
+
+This means EVERY script must connect back to ONE of these three viewer payoffs:
+1. **A skill they can learn** ("ye 5 cheezein seekho aur placement guarantee")
+2. **A project they can build for their portfolio** ("ye chhota project banao aur GitHub pe daalo")
+3. **A career/placement edge** ("yeh skill rakhne wale candidates ko 30 LPA mil rahi hai")
+
+❌ WRONG framing (don't do this):
+- "Indian SaaS startups should build X" (students aren't running SaaS startups)
+- "Brands need cross-platform Y service" (students aren't selling to brands)
+- "Build an MVP and sell to fintech companies" (students don't have B2B sales pipelines)
+- "Revenue aur scale ka potential hai" (students want JOBS, not revenue)
+
+✅ RIGHT framing:
+- "Ye 5 concepts seekho — placement mein 30 LPA ka offer pakka"
+- "Ek chhota agentic AI project banao apne resume mein, founder level engineer lagega"
+- "Ye topic placement interviews mein puchha jaa raha hai 2026 mein"
+- "Tum portfolio project banao ye stack pe, hire hone ke chances 3x ho jayenge"
+
+# 🔁 RE-MAPPING TEMPLATES FOR STUDENTS
+
+Use the existing 4 templates but reframe their PAYOFF for students:
+
+- **OPPORTUNITY** → "Yeh portfolio project banao to land jobs" (NOT "build a SaaS company")
+- **INSIGHT** → "Yeh 5 technical concepts seekho — placement edge milega"
+- **TUTORIAL** → "Yeh 3 steps follow karke abhi banao" (works for students as-is)
+- **TWIST** → "Trending news ke peeche ye CS concept hai — yeh seekho"
+
+The CTA word should reflect this audience: LEARN, BUILD, SKILL, RESUME, PLACEMENT, PROJECT, ROADMAP are all better than MONEY, REVENUE, BLUEPRINT for this audience.
+
+# 🌐 TECH-BEHIND-TRENDING — for non-tech news (politics, sports, controversies)
+
+When the news is a viral non-tech story (political controversy, geopolitical event, regulatory ruling), DON'T comment on the politics. Instead:
+1. Acknowledge the trending news in the hook (high engagement signal)
+2. Pivot to the technology/algorithm/data engineering concept UNDERNEATH it
+3. Teach that concept as a learnable skill
+
+Examples:
+- "PM Modi Norway press conference" → "ye debate iss data pipeline pe hai — World Press Freedom Index ke 5 algorithmic indicators"
+- "Bollywood deepfake controversy" → "ye 5 mechanisms se detect hota hai — students yeh seekho"
+- "Election commission AI rules" → "ye OSINT aur data scraping concepts hai — placement mein hot topic"
+
+This is a SUB-PATTERN of TWIST/INSIGHT, not a separate template. Use TWIST template when news is comparison/ruling, INSIGHT when there's a clear mechanism to break down.
 
 # THE VOICE — non-negotiable rules
 
@@ -68,14 +114,14 @@ Every news story has MULTIPLE possible reels hidden inside it. Don't just look a
 
 For each story, write 4 candidate angles:
 
-**OPPORTUNITY angle:** What market gap, broken industry, or builder opportunity does this story expose? Even labor strikes, lawsuits, and policy changes often reveal a missing tech solution someone could build. Always ask: "What MVP could a developer ship in response to this?"
+**OPPORTUNITY angle:** What can a STUDENT build in response to this news for their portfolio? The "buyer" isn't a company — it's a placement recruiter. The "MVP" is a portfolio project. Always ask: "What 1-week side project could a CS student build that would make recruiters stop and read their resume?"
 
 ⚠️ HARD CALIBRATION FOR OPPORTUNITY SCORE — be ruthless:
-- "Build an enhanced version of an existing free tool" → max 4/10 (no real gap)
-- "Educate creators about X" → max 3/10 (info content, not a build opportunity)
-- "Build a service around an existing platform's feature" → max 5/10 (platform will absorb it)
-- 8/10+ ONLY when: clear market in crore/lakh scale + specific gap not served by existing players + concrete MVP technical approach + named buyers (Indian companies)
-- Default to 5-6/10 unless you can list (a) market size, (b) specific gap, (c) MVP approach, (d) target buyer. Missing any of these → cap at 6.
+- "Build an enhanced version of an existing free tool" → max 4/10 (not portfolio-worthy)
+- "Educate creators about X" → max 3/10 (info content, not buildable)
+- "Build a service around an existing platform's feature" → max 5/10 (low signal for recruiters)
+- 8/10+ ONLY when: clear portfolio project + uses an in-demand stack (LangGraph, CrewAI, vector DBs, agents) + addresses a real problem in the news + would impress an interviewer asking "tell me about a project you built"
+- Default to 5-6/10 unless you can list: (a) what to build, (b) stack to use, (c) skill it demonstrates, (d) why a recruiter would care. Missing any of these → cap at 6.
 
 **INSIGHT angle:** What underlying mechanism, algorithm, or system does this story touch? Could you explain 5 distinct concrete technical points about HOW that mechanism works? (Hard quality bar — see below.)
 
@@ -204,14 +250,16 @@ Beats:
 - CTA: "Comment karo [TRIGGER_WORD] aur mai iski puri detail tumhe dm kardunga."
 
 ### Template C: OPPORTUNITY
-Use when the news reveals a market gap or builder opportunity. STRONG DEFAULT — pick this when in doubt.
+Use when the news reveals a chance for a STUDENT to build a portfolio project that uses an in-demand stack.
 
 Beats:
-- Hook: "Bhai [shock fact about an industry/market]." Declarative. INR numbers if available.
-- Bridge: "Ye ek problem hai aur tum isse [tech/AI/specific solution] se solve karke paise kama sakte ho."
-- Body: Market size in crore/lakh + the specific gap + what kind of MVP would work + which existing players fall short
-- Payoff: "Agar koi yeh structure banaye toh [specific outcome — revenue, scale, audience]."
-- CTA: "Comment karo [TRIGGER_WORD] aur mai iska blueprint dm kardunga."
+- Hook: "Bhai [shock fact about a market boom/funding/trend]." Declarative. Numbers if available.
+- Bridge: "Ye students ke liye ek perfect chance hai apna portfolio strong banane ka."
+- Body: What the project is + what stack to use (LangGraph, CrewAI, vector DBs, Next.js, etc.) + what skill it demonstrates + why recruiters will love it
+- Payoff: "Agar tum yeh project ek week mein bana lo aur GitHub pe daal do, placement ke chances 3x ho jayenge."
+- CTA: "Comment karo [TRIGGER_WORD] aur mai is project ka blueprint aur learning resources dm kardunga."
+
+⚠️ NEVER end with "revenue and scale potential." That's founder language, not student language. End with "placement edge", "portfolio strength", or "skill demonstration."
 
 ### Template D: TWIST
 Use when the news is a trend, ruling, comparison, or policy that has a non-obvious second-order implication for the viewer. The hook teases the rule/fact; the payoff reveals the counterintuitive twist.
@@ -329,7 +377,7 @@ def generate_script(
             raise ValueError(f"template_override must be one of {VALID_TEMPLATES}, got {t!r}")
         override_instruction = (
             f"\n\n⚠️ TEMPLATE OVERRIDE: The user has explicitly requested the {t} template. "
-            f"Still brainstorm all 3 angles for visibility, but write the final script using "
+            f"Still brainstorm all 4 angles for visibility, but write the final script using "
             f"the {t} angle even if another scores higher. Set chosen_template to '{t}'."
         )
 
@@ -344,7 +392,7 @@ def generate_script(
     try:
         resp = client.chat.completions.create(
             model=MODEL,
-            max_tokens=1200,
+            max_tokens=1500,
             temperature=0.8,
             response_format={"type": "json_object"},
             messages=[
