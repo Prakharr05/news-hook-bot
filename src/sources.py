@@ -54,7 +54,7 @@ RSS_FEEDS = [
     {"name": "Times India Tech", "url": "https://timesofindia.indiatimes.com/rssfeeds/66949542.cms", "category": "india_trending"},
 
     # ─── AI startups & funding (Indian + global) ───
-    {"name": "Tracxn India",     "url": "https://tracxn.com/rss/feed/india",                  "category": "india_tech"},
+    # (Tracxn dropped — RSS feed returns archive data instead of recent items.)
 ]
 
 # Hacker News & Reddit are pulled via JSON APIs in fetcher.py
