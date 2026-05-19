@@ -23,6 +23,7 @@ import httpx
 logger = logging.getLogger(__name__)
 
 DIGEST_KEY = "news_hook_bot:last_digest"
+MORE_POOL_KEY = "news_hook_bot:more_pool"
 RATE_LIMIT_KEY_PREFIX = "news_hook_bot:ratelimit"
 
 
@@ -71,15 +72,46 @@ def load_digest(chat_id: str | None = None) -> list[dict]:
     if not result:
         return []
     data = json.loads(result)
-    # Single-user (list) format — return as-is for backward compat
     if isinstance(data, list):
         return data
-    # Multi-user (dict) format — look up this user's stories
     if isinstance(data, dict):
         if chat_id and str(chat_id) in data:
             return data[str(chat_id)]
-        # Fallback: return first user's stories so webhook still works if chat_id missing
         return next(iter(data.values()), [])
+    return []
+
+
+def save_more_pool(per_user_more: dict) -> None:
+    """Save the 'more headlines' pool — stories beyond top_n that /more will show.
+
+    Format: dict[chat_id, list[dict]] — each user has their own filtered list.
+    Stories should be lightweight (no hook/payoff content — just title/source/url).
+    """
+    url, headers = _client()
+    payload = json.dumps(per_user_more, default=str)
+    r = httpx.post(
+        f"{url}/setex/{MORE_POOL_KEY}/129600",
+        headers=headers,
+        content=payload,
+        timeout=10.0,
+    )
+    r.raise_for_status()
+    total = sum(len(v) for v in per_user_more.values())
+    logger.info("Saved /more pool to Upstash (%d users, %d total headlines)",
+                len(per_user_more), total)
+
+
+def load_more_pool(chat_id: str) -> list[dict]:
+    """Fetch the user's /more headlines list."""
+    url, headers = _client()
+    r = httpx.get(f"{url}/get/{MORE_POOL_KEY}", headers=headers, timeout=10.0)
+    r.raise_for_status()
+    result = r.json().get("result")
+    if not result:
+        return []
+    data = json.loads(result)
+    if isinstance(data, dict):
+        return data.get(str(chat_id), [])
     return []
 
 
