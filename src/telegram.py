@@ -146,7 +146,40 @@ def broadcast(stories: list[dict], users: list[dict]) -> None:
             logger.error("Failed to send digest to %s: %s", u.get("name", "?"), e)
 
 
-def send_scripts(stories: list[dict], chat_id: str | None = None) -> None:
+def send_more_headlines(headlines: list[dict], chat_id: str | None = None) -> None:
+    """Send a compact list of additional headlines (title + source + link).
+
+    No hooks, no payoffs — just enough to scan for stories worth pursuing.
+    Chunks into multiple messages if needed to stay under Telegram's 4000-char limit.
+    """
+    if not headlines:
+        _send_chunks([_escape_md("No additional headlines today. Try again tomorrow.")], chat_id=chat_id)
+        return
+
+    lean_emoji = {"OPPORTUNITY": "💼", "INSIGHT": "🧠", "TUTORIAL": "🛠️", "TWIST": "🌀"}
+
+    date_str = datetime.now().strftime("%a, %d %b %Y")
+    header = f"📋 *More headlines* — _{_escape_md(date_str)}_\n_{len(headlines)} additional stories beyond today's digest_\n"
+
+    chunks: list[str] = [header]
+    current = ""
+
+    for i, h in enumerate(headlines, 1):
+        emoji = lean_emoji.get(h.get("template_lean", ""), "📰")
+        title = _escape_md(h["title"][:140])
+        source = _escape_md(h.get("source", ""))
+        score = h.get("hook_score", 0)
+        url = h["url"]
+
+        line = f"\n{i}\\. {emoji} [{title}]({url})\n   _{source} · score {score}_"
+
+        # Telegram limit is 4096; leave headroom
+        if len(chunks[-1]) + len(line) > 3800:
+            chunks.append(line.lstrip())
+        else:
+            chunks[-1] += line
+
+    _send_chunks(chunks, chat_id=chat_id)
     """Send full reel scripts. Optionally to a specific chat (used by the webhook)."""
     if not stories:
         _send_chunks([_escape_md("No scripts to send.")], chat_id=chat_id)
