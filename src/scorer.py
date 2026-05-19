@@ -237,7 +237,80 @@ OPPORTUNITY_KEYWORDS = {
     "strike": 4, "protest": 3, "boycott": 4,
     "lawsuit": 4, "sued": 4, "antitrust": 4, "fine": 3, "fined": 3,
     "monopoly": 5, "monopol": 5, "exploit": 3,
-    "raised": -3,   # funding news is OPPORTUNITY-looking but actually boring
+    # Funding news gets a small positive — signals real activity but most are boring.
+    # Let the LLM and trending-category quotas decide if it's filmable.
+    "raised": 1, "funding": 1, "series a": 1, "series b": 1, "series c": 1,
+    "valuation": 2, "unicorn": 3,
+}
+
+# ─── STUDENT-AUDIENCE BOOST KEYWORDS ───
+# Lighter weights than my first pass. Student-relevant stories get a small bump but
+# don't dominate the digest with niche AI framework news.
+STUDENT_AUDIENCE_KEYWORDS = {
+    "career": 3, "careers": 3, "salary": 3, "salaries": 3,
+    "intern": 2, "internship": 3, "internships": 3,
+    "fresher": 3, "freshers": 3, "graduate": 2, "graduates": 2,
+    "college": 2, "campus": 2, "university": 2,
+    "engineer": 2, "engineers": 2, "developer": 2, "developers": 2,
+    "skill": 3, "skills": 3, "stack": 2, "tech stack": 3,
+    "github": 3, "leetcode": 3, "open source": 3,
+    "agent": 3, "agents": 3, "agentic": 4,
+    "rag": 3, "langgraph": 3, "crewai": 3, "langchain": 3,
+    "vector database": 3, "vector db": 3,
+    "llm": 3, "fine tuning": 3, "fine-tuning": 3,
+    "30 lpa": 4, "lpa": 3, "package": 2,
+    "deepfake": 4, "deepfakes": 4,
+}
+
+# ─── VIRAL/TRENDING-INDIA BOOST KEYWORDS ───
+# These signal stories that engage Indian audiences regardless of topic.
+# Heavy weight because virality > niche relevance for top-of-funnel growth.
+# ─── ENTERTAINMENT / GOSSIP PENALTY ───
+# These words signal celebrity/Bollywood/sports content that doesn't fit Prakhar's
+# tech-behind-trending format. Heavy negative weight to filter them out.
+GOSSIP_KEYWORDS = {
+    "bollywood": -8, "tollywood": -6, "kollywood": -6,
+    "celebrity": -5, "celeb": -5, "actress": -6, "actor": -3,
+    "wedding": -5, "marriage": -3, "divorce": -3, "dating": -5,
+    "fashion": -4, "outfit": -5, "outfits": -5, "saree": -5,
+    "kapoor": -5, "khan": -3, "bachchan": -5, "deepika": -5, "ranbir": -5,
+    "trailer": -4, "teaser": -4, "release date": -3, "box office": -5,
+    "ipl": -4, "cricket": -3, "csk": -5, "rcb": -5, "mumbai indians": -5,
+    "fifa": -4, "football match": -4,
+    "horoscope": -8, "zodiac": -8, "astrology": -8,
+    "recipe": -6, "viral video": -3, "memes": -4,
+}
+
+VIRAL_KEYWORDS = {
+    # Public figures — names that make Indians click
+    "modi": 5, "narendra modi": 5, "pm modi": 5,
+    "rahul gandhi": 5, "raghav chadha": 5, "kejriwal": 4,
+    "adani": 5, "ambani": 5, "mukesh ambani": 5, "gautam adani": 5,
+    "sundar pichai": 4, "satya nadella": 4, "elon musk": 5,
+    "yogi": 4, "shah": 3, "mamata": 3,
+
+    # Geopolitics that lands in India
+    "china": 4, "pakistan": 4, "us tariff": 4, "tariffs": 3,
+    "norway": 3, "netherlands": 3, "russia": 3, "iran": 3,
+    "border": 3, "diplomatic": 3, "ambassador": 3,
+
+    # Controversy markers — these turn news into story
+    "demands": 3, "demand": 2, "responds": 3, "fires back": 4,
+    "exposes": 4, "exposed": 4, "leaks": 4, "leaked": 4,
+    "denies": 3, "admits": 3, "confesses": 4,
+    "vs ": 3, "clashes with": 3, "slams": 3,
+
+    # Rule/policy/ruling words for the China-rule type stories
+    "new rule": 5, "new rules": 5, "rules out": 3,
+    "verdict": 4, "supreme court": 4, "high court": 3,
+    "passed bill": 4, "ordinance": 3,
+    "fired": 3, "resigned": 3, "ousted": 4,
+    "scam": 5, "fraud": 4, "raid": 4, "arrested": 4,
+
+    # India-context engagement signals
+    "indian": 2, "india": 2, "bharat": 2,
+    "lok sabha": 3, "rajya sabha": 3, "parliament": 3,
+    "election": 3, "voter": 3, "elections": 3,
 }
 
 
@@ -270,14 +343,63 @@ def score(stories: list[dict]) -> list[dict]:
         title_score, title_kws = _score_text(s["title"])
         summary_score, _ = _score_text(s["summary"])
 
+        # Category weighting — Prakhar's content focuses on TRENDING Indian news with
+        # a tech/data angle (60% target) + pure tech news (40% target).
+        # india_trending gets the HIGHEST baseline because that's the primary content category.
         category_bonus = {
-            "india_tech":   8,
-            "india_policy": 10,
-            "platform":     3,
+            "india_trending":     12,   # primary content category
+            "india_tech_policy":  8,
+            "india_ai_policy":    8,
+            "india_tech":         6,
+            "ai_research":        4,
+            "platform":           2,
         }.get(s.get("category", ""), 0)
 
-        s["hook_score"] = title_score * 2 + summary_score + category_bonus
+        text_lower = (s["title"] + " " + s["summary"]).lower()
+
+        # Viral boost: public figures, geopolitics, controversy markers, policy rulings.
+        # These signal engagement potential regardless of tech angle.
+        viral_boost = 0
+        viral_matches: list[str] = []
+        for kw, w in VIRAL_KEYWORDS.items():
+            if kw in text_lower:
+                viral_boost += w
+                viral_matches.append(kw)
+
+        # Student boost: smaller now (max ~10 across all matches typically)
+        student_boost = 0
+        student_matches: list[str] = []
+        for kw, w in STUDENT_AUDIENCE_KEYWORDS.items():
+            if kw in text_lower:
+                student_boost += w
+                student_matches.append(kw)
+
+        # Gossip / entertainment penalty — Bollywood, sports gossip, fashion, etc.
+        # These dominate trending feeds but don't fit Prakhar's content style.
+        gossip_penalty = 0
+        for kw, w in GOSSIP_KEYWORDS.items():
+            if kw in text_lower:
+                gossip_penalty += w   # already negative
+
+        # Soft tech-angle requirement for trending stories.
+        # Trending stories need EITHER a viral signal (they're naturally high-engagement)
+        # OR a tech keyword (so we can find an angle to teach). Pure entertainment/gossip
+        # without either gets penalized.
+        if s.get("category") == "india_trending":
+            has_viral = viral_boost >= 3
+            has_tech = student_boost >= 2 or title_score >= 4
+            if not (has_viral or has_tech):
+                category_bonus -= 15   # downweight pure entertainment
+
+        s["hook_score"] = (
+            title_score * 2 + summary_score + category_bonus
+            + viral_boost + student_boost + gossip_penalty
+        )
         s["matched_keywords"] = title_kws[:5]
+        if student_matches:
+            s["student_keywords"] = student_matches[:5]
+        if viral_matches:
+            s["viral_keywords"] = viral_matches[:5]
 
         # Template prediction — combines title + summary, title weighted more
         combined = (s["title"] + " ") * 2 + s["summary"]
@@ -289,54 +411,66 @@ def score(stories: list[dict]) -> list[dict]:
 
 def rank(stories: list[dict], top_n: int = 8, min_score: int = 6) -> list[dict]:
     """
-    Rank with two diversity guarantees:
-    1. Max 2 stories per source (so the digest isn't 'TechCrunch x8')
-    2. Template diversity — try to fill a quota of each template
+    Rank with THREE diversity guarantees:
+    1. Max N stories per source (so the digest isn't 'TechCrunch x8')
+    2. Content-type quota: 60% trending/govt + 40% pure tech (for top_n=8: 5 govt + 3 tech)
+    3. Template diversity within each bucket
 
-    Target distribution for top_n=8: 3 OPPORTUNITY + 3 INSIGHT + 2 TUTORIAL
-    (slight bias to opportunity since it's the default fallback). If not enough
-    of one template exists, the remaining slots overflow to the highest-scoring
-    stories of any template.
+    Govt-bucket categories: india_trending, india_tech_policy, india_ai_policy
+    Tech-bucket categories: everything else (bigtech, ai_research, india_tech, platform, deep_tech)
     """
     scored = score(dedupe(stories))
     scored.sort(key=lambda s: s["hook_score"], reverse=True)
 
-    # Per-source cap scales with top_n. Top-8 digest: max 2 per source.
-    # /more pool (top_n ~58): max 6 per source so we have enough variety to fill.
     source_cap = max(2, top_n // 10)
 
-    # Target counts per template — scaled to top_n
-    # For top_n=8: 3 OPPORTUNITY + 2 INSIGHT + 2 TUTORIAL + 1 TWIST
+    # Content-type quota: 60% govt-ish, 40% tech.
+    govt_categories = {"india_trending", "india_tech_policy", "india_ai_policy"}
+    govt_target = max(1, round(top_n * 0.6))   # 5 of 8
+    tech_target = top_n - govt_target           # 3 of 8
+    govt_count = 0
+    tech_count = 0
+
+    # Template quota inside each bucket (looser, will overflow if needed)
     target_per_template = {
         "OPPORTUNITY": max(1, top_n * 3 // 8),
         "INSIGHT":     max(1, top_n * 2 // 8),
         "TUTORIAL":    max(1, top_n * 2 // 8),
         "TWIST":       max(1, top_n * 1 // 8),
     }
-    # Make sure the targets sum to top_n (rounding can leave slots empty)
     while sum(target_per_template.values()) < top_n:
         target_per_template["OPPORTUNITY"] += 1
     template_count: dict[str, int] = {k: 0 for k in target_per_template}
     per_source_count: dict[str, int] = {}
     out: list[dict] = []
 
-    # Phase 1: Fill template quotas. Pick the top-scoring story for each template.
+    # Phase 1: Fill govt + tech quotas with template diversity preference.
     for s in scored:
         if s["hook_score"] < min_score:
             continue
         if per_source_count.get(s["source"], 0) >= source_cap:
             continue
+        is_govt = s.get("category") in govt_categories
+        if is_govt and govt_count >= govt_target:
+            continue
+        if not is_govt and tech_count >= tech_target:
+            continue
         lean = s.get("template_lean", "OPPORTUNITY")
-        if template_count[lean] >= target_per_template[lean]:
+        # Soft template diversity — only enforce if we have headroom
+        if template_count[lean] >= target_per_template[lean] and len(out) < top_n - 2:
             continue
         out.append(s)
         template_count[lean] += 1
         per_source_count[s["source"]] = per_source_count.get(s["source"], 0) + 1
+        if is_govt:
+            govt_count += 1
+        else:
+            tech_count += 1
         if len(out) >= top_n:
             break
 
-    # Phase 2: Overflow — if any template didn't have enough stories,
-    # fill remaining slots with the next-highest-scoring stories regardless of template
+    # Phase 2: If govt bucket couldn't be filled (slow news day), let tech overflow.
+    # If tech bucket couldn't be filled, let govt overflow.
     if len(out) < top_n:
         seen_urls = {s["url"] for s in out}
         for s in scored:
@@ -351,6 +485,6 @@ def rank(stories: list[dict], top_n: int = 8, min_score: int = 6) -> list[dict]:
             if len(out) >= top_n:
                 break
 
-    # Final sort by score so the highest-impact story is #1 regardless of template
+    # Final sort by score so the highest-impact story is #1
     out.sort(key=lambda s: s["hook_score"], reverse=True)
     return out
