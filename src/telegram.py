@@ -180,6 +180,9 @@ def send_more_headlines(headlines: list[dict], chat_id: str | None = None) -> No
             chunks[-1] += line
 
     _send_chunks(chunks, chat_id=chat_id)
+
+
+def send_scripts(stories: list[dict], chat_id: str | None = None) -> None:
     """Send full reel scripts. Optionally to a specific chat (used by the webhook)."""
     if not stories:
         _send_chunks([_escape_md("No scripts to send.")], chat_id=chat_id)
