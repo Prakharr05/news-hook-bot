@@ -60,8 +60,9 @@ def cmd_digest(args) -> int:
 
     # Rank a WIDER pool than top_n. We re-rank per user with their feed_filter,
     # so the senior's govt-only feed still has 8 stories even after filtering.
+    # Pool size includes headroom for /more (which shows up to 50 additional stories).
     log.info("Deduping and scoring full pool…")
-    pool = scorer.rank(raw, top_n=args.top * 4, min_score=args.min_score)
+    pool = scorer.rank(raw, top_n=max(args.top * 4, args.top + 50), min_score=max(2, args.min_score - 2))
     log.info("Wider pool: %d stories", len(pool))
 
     # Load users; if none configured, fall back to single-user logic
@@ -95,16 +96,31 @@ def cmd_digest(args) -> int:
 
     # Multi-user mode: each user gets their own top_n after filtering
     per_user_digests: dict[str, list[dict]] = {}
+    per_user_more: dict[str, list[dict]] = {}    # stories beyond top_n for /more
     union_stories: dict[str, dict] = {}   # by url, to dedupe across users for LLM hook gen
+
+    MORE_LIMIT = 50   # max headlines to expose via /more
 
     for u in user_list:
         filtered = users_mod.filter_stories_for_user(pool, u)
         user_top = filtered[:args.top]
+        # /more pool = next 50 after top, lightweight format (no LLM enrichment)
+        user_more = [
+            {
+                "title": s["title"],
+                "url": s["url"],
+                "source": s["source"],
+                "hook_score": s["hook_score"],
+                "template_lean": s.get("template_lean", ""),
+            }
+            for s in filtered[args.top : args.top + MORE_LIMIT]
+        ]
         per_user_digests[u["chat_id"]] = user_top
+        per_user_more[u["chat_id"]] = user_more
         for s in user_top:
             union_stories[s["url"]] = s
-        log.info("User %s: %d stories after filter %s",
-                 u.get("name", "?"), len(user_top), u.get("feed_filter", "none"))
+        log.info("User %s: %d stories in digest + %d in /more pool",
+                 u.get("name", "?"), len(user_top), len(user_more))
 
     # Generate hooks ONCE for the union of all users' top stories
     all_stories = list(union_stories.values())
@@ -122,14 +138,12 @@ def cmd_digest(args) -> int:
     LAST_DIGEST.write_text(json.dumps(your_digest, indent=2, default=str))
 
     # Upstash needs to hold per-user digests so the webhook knows what to read.
-    # Store as a dict {chat_id: stories} under a single key.
     try:
         from src import storage
-        # Old digest format was a list; new format is a dict keyed by chat_id.
-        # save_digest will accept either.
         storage.save_digest({chat_id: stories for chat_id, stories in per_user_digests.items()})
+        storage.save_more_pool(per_user_more)
     except Exception as e:
-        log.warning("Could not save digest to Upstash: %s", e)
+        log.warning("Could not save to Upstash: %s", e)
 
     if args.save:
         Path(args.save).write_text(json.dumps(per_user_digests, indent=2, default=str))
