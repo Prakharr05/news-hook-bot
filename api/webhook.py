@@ -63,7 +63,7 @@ def _send_text(chat_id: str, text: str) -> None:
 def handle_command(text: str, user: dict) -> None:
     """Route a slash-command. Sends reply via Telegram directly."""
     chat_id = user["chat_id"]
-    anthropic_key = user.get("anthropic_key")
+    api_key = user.get("openai_key")
     text = text.strip()
 
     if text in ("/start", "/help"):
@@ -133,13 +133,13 @@ def handle_command(text: str, user: dict) -> None:
         ack_msg += "\\.\\.\\. \\(takes 10\\-20 sec\\)"
         _send_text(chat_id, ack_msg)
 
-        if not anthropic_key:
-            _send_text(chat_id, "⚠️ No Anthropic key configured for your account\\. Contact admin to add `anthropic_key` to your user record\\.")
+        if not api_key:
+            _send_text(chat_id, "⚠️ No OpenAI key configured for your account\\. Contact admin\\.")
             return
 
         try:
             story = stories[idx]
-            script_gen.generate_script(story, api_key=anthropic_key, template_override=template_override)
+            script_gen.generate_script(story, api_key=api_key, template_override=template_override)
             telegram.send_scripts([story], chat_id=chat_id)
         except Exception as e:
             log.exception("Script generation failed for chat %s", chat_id)
