@@ -38,6 +38,23 @@ RSS_FEEDS = [
 
     # ─── AI policy specifically (India-relevant where possible) ───
     {"name": "AnalyticsIndiaMag","url": "https://analyticsindiamag.com/feed/",                "category": "india_ai_policy"},
+
+    # ─── INDIAN trending news — primary content category for Prakhar ───
+    # Mix of: tech-focused trending (Wire Tech, NDTV Gadgets) for Mythos/AI stories
+    # AND general Indian news (Print, Wire, Scroll) for Modi/Chadha/China-rule type stories.
+    # The scorer's viral-keyword boost filters for ones with public figures, geopolitics,
+    # or controversy markers; pure entertainment gets downweighted.
+    {"name": "The Print",        "url": "https://theprint.in/feed/",                          "category": "india_trending"},
+    {"name": "The Wire",         "url": "https://thewire.in/rss",                             "category": "india_trending"},
+    {"name": "Scroll.in",        "url": "https://scroll.in/feeds/all.rss",                    "category": "india_trending"},
+    {"name": "NDTV Gadgets",     "url": "https://feeds.feedburner.com/gadgets360-latest",     "category": "india_trending"},
+    {"name": "HT Tech",          "url": "https://tech.hindustantimes.com/rss/feeds/news",     "category": "india_trending"},
+    {"name": "ThePrint Tech",    "url": "https://theprint.in/category/tech/feed/",            "category": "india_trending"},
+    {"name": "Business Std Tech","url": "https://www.business-standard.com/rss/technology-108.rss", "category": "india_trending"},
+    {"name": "Times India Tech", "url": "https://timesofindia.indiatimes.com/rssfeeds/66949542.cms", "category": "india_trending"},
+
+    # ─── AI startups & funding (Indian + global) ───
+    {"name": "Tracxn India",     "url": "https://tracxn.com/rss/feed/india",                  "category": "india_tech"},
 ]
 
 # Hacker News & Reddit are pulled via JSON APIs in fetcher.py
