@@ -36,15 +36,16 @@ log = logging.getLogger("webhook")
 
 HELP_TEXT = (
     "🤖 *News Hook Bot commands:*\n\n"
-    "`/digest` — Re\\-send today's top 8 digest\n"
-    "`/more` — Show up to 50 additional headlines \\(no hooks, just titles\\)\n"
-    "`/script N` — Generate reel script for story \\#N \\(auto template\\)\n"
-    "`/script N opportunity` — Force OPPORTUNITY framing\n"
-    "`/script N insight` — Force INSIGHT framing\n"
-    "`/script N tutorial` — Force TUTORIAL framing\n"
-    "`/script N twist` — Force TWIST framing\n"
+    "*Tech digest:*\n"
+    "`/digest` — Today's top 8 tech stories\n"
+    "`/more` — 50 more tech headlines\n"
+    "`/script N` — Reel script for story \\#N \\(auto template\\)\n"
+    "`/script N opportunity\\|insight\\|tutorial\\|twist` — Force a template\n\n"
+    "*Govt / trending:*\n"
+    "`/govt` — Trending govt news \\(ranked by outlet coverage\\)\n"
+    "`/govtmore` — More govt headlines \\(by recency\\)\n\n"
     "`/help` — Show this message\n\n"
-    "_Daily digest arrives automatically at 8:30 AM IST\\._"
+    "_Tech digest arrives daily at 8:30 AM IST\\._"
 )
 
 
@@ -84,6 +85,22 @@ def handle_command(text: str, user: dict) -> None:
             _send_text(chat_id, "No additional headlines cached yet\\. Wait for the next 8:30 AM run\\.")
             return
         telegram.send_more_headlines(headlines, chat_id=chat_id)
+        return
+
+    if text == "/govt":
+        clusters = storage.load_govt_digest()
+        if not clusters:
+            _send_text(chat_id, "No govt digest cached yet\\. It refreshes a few times daily\\.")
+            return
+        telegram.send_govt_digest(clusters, chat_id=chat_id)
+        return
+
+    if text == "/govtmore":
+        headlines = storage.load_govt_more()
+        if not headlines:
+            _send_text(chat_id, "No additional govt headlines cached yet\\.")
+            return
+        telegram.send_govt_more(headlines, chat_id=chat_id)
         return
 
     if text.startswith("/script"):
