@@ -1,21 +1,23 @@
 """
-Uses OpenAI's gpt-4o-mini (cheap, fast) to generate:
+Uses Claude Haiku 4.5 (cheap, fast) to generate:
   - A 1-line hook (the first 3-4 second grab)
   - A tech-content angle (the bridge from news -> tech explainer)
 
-Costs ~$0.0002 per story at gpt-4o-mini pricing — even cheaper than Haiku.
+Costs ~₹0.05 per story at Haiku pricing ($1/M in, $5/M out). Cheap enough to run
+on the full digest daily.
 """
 from __future__ import annotations
 import json
 import logging
 import os
 
-from openai import OpenAI
+from anthropic import Anthropic
 
 logger = logging.getLogger(__name__)
 
-# Cheap + fast. Swap to "gpt-4o" or "gpt-4.1" for better angles at ~30x cost.
-MODEL = "gpt-4o-mini"
+# Haiku 4.5 — cheap + fast, fine for hook categorization.
+# Swap to "claude-sonnet-4-6" for better angles at ~3x cost.
+MODEL = os.environ.get("HOOK_MODEL", "claude-haiku-4-5-20251001")
 
 SYSTEM_PROMPT = """You're a writing assistant for Prakhar, a tech content creator who makes short-form videos in the style of EZ Snippet (Neeraj Walia) — Indian audience, Hinglish, no hype words, sharp factual hooks, payoff-driven explainers.
 
@@ -44,7 +46,7 @@ Good pivot examples:
 1. **MECHANISM** — break down HOW something technical works in 3-5 named signals/layers/steps. Use real technical terms (graph neural networks, device fingerprinting, behavioral biometrics, etc.).
    Use when: story is about detection, security, algorithms, ranking, moderation, infra.
 
-2. **OPPORTUNITY** — turn the news into a business/build idea with real INR numbers (market size, commission rates, user counts) and a "you can build this" angle.
+2. **OPPORTUNITY** — turn the news into a build/learn idea for STUDENTS with real numbers and a "you can build this for your portfolio" or "learn this skill" angle.
    Use when: story is about a platform problem, broken industry, or new tech opening a market.
 
 3. **TWIST** — state a rule/event/fact, then reveal a clever exception, loophole, or hidden implication for a specific audience (devs, students, Indians).
@@ -56,6 +58,7 @@ Good pivot examples:
 - Numbers make abstract things visceral. Include real numbers in the payoff whenever possible.
 - The "tech_angle" output should be the FULL payoff content — 3-5 specific technical points, NOT a generic topic.
 - Hinglish in hook/pivot, more English in tech_angle (since it covers real terms).
+- Audience is Indian engineering/CS students — frame payoffs around skills/projects/placement, not founder/business language.
 - If the news doesn't fit any of the 3 payoff structures well, lower the confidence score.
 """
 
@@ -75,35 +78,54 @@ Respond ONLY in valid JSON with this exact shape:
 {{"hook": "...", "pivot": "...", "payoff_structure": "mechanism", "tech_angle": "...", "confidence": 7}}"""
 
 
-def _build_client() -> OpenAI:
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        raise RuntimeError("OPENAI_API_KEY env var not set")
-    return OpenAI(api_key=api_key)
+def _build_client(api_key: str | None = None) -> Anthropic:
+    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+    if not key:
+        raise RuntimeError("ANTHROPIC_API_KEY env var not set (or pass api_key arg)")
+    return Anthropic(api_key=key)
 
 
-def generate_hook(story: dict, client: OpenAI | None = None) -> dict:
+def _extract_json(text: str) -> dict:
+    """Parse JSON from Claude output, tolerating markdown fences."""
+    text = text.strip()
+    if text.startswith("```"):
+        lines = text.split("\n")
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines)
+    text = text.strip()
+    start, end = text.find("{"), text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        text = text[start:end + 1]
+    return json.loads(text)
+
+
+def generate_hook(story: dict, client: Anthropic | None = None, api_key: str | None = None) -> dict:
     """Add 'hook', 'tech_angle', and 'llm_confidence' fields to a story."""
-    client = client or _build_client()
+    client = client or _build_client(api_key)
     user_prompt = USER_PROMPT_TEMPLATE.format(
         title=story["title"],
         source=story["source"],
         summary=story["summary"][:500],
     )
     try:
-        resp = client.chat.completions.create(
+        resp = client.messages.create(
             model=MODEL,
             max_tokens=700,
             temperature=0.7,
-            # Force JSON output — OpenAI guarantees parseable JSON with this flag
-            response_format={"type": "json_object"},
+            system=SYSTEM_PROMPT,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
         )
-        text = resp.choices[0].message.content.strip()
-        data = json.loads(text)
+        text = ""
+        for block in resp.content:
+            if getattr(block, "type", None) == "text":
+                text = block.text
+                break
+        data = _extract_json(text)
         story["hook"] = data.get("hook", "")
         story["pivot"] = data.get("pivot", "")
         story["payoff_structure"] = data.get("payoff_structure", "")
@@ -119,9 +141,9 @@ def generate_hook(story: dict, client: OpenAI | None = None) -> dict:
     return story
 
 
-def generate_hooks(stories: list[dict]) -> list[dict]:
+def generate_hooks(stories: list[dict], api_key: str | None = None) -> list[dict]:
     """Generate hooks for every story. Sequential — usually <10 stories so no need for async."""
-    client = _build_client()
+    client = _build_client(api_key)
     for s in stories:
         generate_hook(s, client)
     return stories
