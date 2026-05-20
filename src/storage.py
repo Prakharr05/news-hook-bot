@@ -24,6 +24,8 @@ logger = logging.getLogger(__name__)
 
 DIGEST_KEY = "news_hook_bot:last_digest"
 MORE_POOL_KEY = "news_hook_bot:more_pool"
+GOVT_DIGEST_KEY = "news_hook_bot:govt_digest"
+GOVT_MORE_KEY = "news_hook_bot:govt_more"
 RATE_LIMIT_KEY_PREFIX = "news_hook_bot:ratelimit"
 
 
@@ -113,6 +115,55 @@ def load_more_pool(chat_id: str) -> list[dict]:
     if isinstance(data, dict):
         return data.get(str(chat_id), [])
     return []
+
+
+def _save_key(key: str, value, ttl: int = 129600) -> None:
+    """Generic SETEX helper."""
+    url, headers = _client()
+    r = httpx.post(f"{url}/setex/{key}/{ttl}", headers=headers,
+                   content=json.dumps(value, default=str), timeout=10.0)
+    r.raise_for_status()
+
+
+def _load_key(key: str):
+    url, headers = _client()
+    r = httpx.get(f"{url}/get/{key}", headers=headers, timeout=10.0)
+    r.raise_for_status()
+    result = r.json().get("result")
+    return json.loads(result) if result else None
+
+
+def save_govt_digest(clusters: list[dict]) -> None:
+    """Save the trending govt clusters (top 8). Stored as a flat list."""
+    # Strip non-serializable sets before saving
+    clean = []
+    for c in clusters:
+        clean.append({
+            "headline": c.get("headline", ""),
+            "url": c.get("url", ""),
+            "summary": c.get("summary", ""),
+            "source_count": c.get("source_count", 0),
+            "story_count": c.get("story_count", 0),
+            "sources": sorted(c.get("sources", [])) if isinstance(c.get("sources"), (set, list)) else [],
+            "latest_pub": c.get("latest_pub", ""),
+        })
+    _save_key(GOVT_DIGEST_KEY, clean)
+    logger.info("Saved govt digest to Upstash (%d trending clusters)", len(clean))
+
+
+def load_govt_digest() -> list[dict]:
+    data = _load_key(GOVT_DIGEST_KEY)
+    return data if isinstance(data, list) else []
+
+
+def save_govt_more(headlines: list[dict]) -> None:
+    _save_key(GOVT_MORE_KEY, headlines)
+    logger.info("Saved govt /more pool to Upstash (%d headlines)", len(headlines))
+
+
+def load_govt_more() -> list[dict]:
+    data = _load_key(GOVT_MORE_KEY)
+    return data if isinstance(data, list) else []
 
 
 def check_rate_limit(user_chat_id: str, max_per_hour: int = 5) -> tuple[bool, int]:
