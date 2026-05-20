@@ -265,6 +265,53 @@ def cmd_script(args) -> int:
 # ─────────────────────────────────────────────────────────────────────────────
 # CLI plumbing
 # ─────────────────────────────────────────────────────────────────────────────
+def cmd_govt(args) -> int:
+    from src import govt_trends, storage, telegram
+
+    log.info("Fetching govt/political news from all sources…")
+    stories = asyncio.run(govt_trends.fetch_govt_stories())
+    log.info("Fetched %d govt stories", len(stories))
+
+    if not stories:
+        log.warning("No govt stories fetched — all feeds may be down.")
+        return 1
+
+    log.info("Clustering by entities and ranking trending…")
+    trending, more_pool = govt_trends.rank_trending(stories, top_n=args.top, more_n=args.more)
+    log.info("Top trending: %d clusters | More pool: %d headlines", len(trending), len(more_pool))
+
+    # Log what surfaced
+    for i, c in enumerate(trending, 1):
+        log.info("  #%d [%d outlets] %s", i, c["source_count"], c["headline"][:70])
+
+    try:
+        storage.save_govt_digest(trending)
+        storage.save_govt_more(more_pool)
+    except Exception as e:
+        log.warning("Could not save govt data to Upstash: %s", e)
+
+    if args.dry_run:
+        for i, c in enumerate(trending, 1):
+            print(f"{i}. [{c['source_count']} outlets] {c['headline']}")
+            print(f"   {c['url']}")
+        return 0
+
+    # Send to all users (govt digest is the same for everyone — no per-user filter)
+    from src import users as users_mod
+    user_list = users_mod.load_users()
+    if user_list:
+        for u in user_list:
+            try:
+                telegram.send_govt_digest(trending, chat_id=u["chat_id"])
+                log.info("Sent govt digest to %s", u.get("name", "?"))
+            except Exception as e:
+                log.error("Failed to send govt digest to %s: %s", u.get("name", "?"), e)
+    else:
+        telegram.send_govt_digest(trending)
+    log.info("Done.")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="News hook bot — daily digest + on-demand script generation")
@@ -289,6 +336,11 @@ def main() -> int:
                             "OPPORTUNITY", "INSIGHT", "TUTORIAL", "TWIST"],
                    help="force a specific template instead of letting LLM pick")
 
+    g = sub.add_parser("govt", help="fetch trending govt news (cross-source), send to Telegram")
+    g.add_argument("--dry-run",   action="store_true")
+    g.add_argument("--top",       type=int, default=8)
+    g.add_argument("--more",      type=int, default=50)
+
     args = ap.parse_args()
     if args.cmd is None:
         args = ap.parse_args(["digest"] + sys.argv[1:])
@@ -297,6 +349,8 @@ def main() -> int:
         return cmd_digest(args)
     elif args.cmd == "script":
         return cmd_script(args)
+    elif args.cmd == "govt":
+        return cmd_govt(args)
     return 1
 
 
