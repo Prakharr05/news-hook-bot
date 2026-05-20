@@ -3,12 +3,21 @@ Multi-user config.
 
 Users are loaded from JSON in the USERS env var. Format:
   [
-    {"name": "Prakhar", "chat_id": "987654321", "openai_key": "sk-..."},
-    {"name": "Senior",  "chat_id": "123456789", "openai_key": "sk-...",
+    {"name": "Prakhar",
+     "chat_id": "987654321",
+     "anthropic_key": "sk-ant-api03-..."},   # used for BOTH hooks and scripts
+
+    {"name": "Senior",
+     "chat_id": "123456789",
+     "anthropic_key": "sk-ant-api03-...",
      "feed_filter": ["india_tech_policy", "india_ai_policy"]}
   ]
 
-`feed_filter` is OPTIONAL. If present, the user only receives stories whose source
+Required keys:
+  - name, chat_id: always
+  - anthropic_key: required for /script generation (also used for daily hooks)
+
+`feed_filter` is optional. If present, the user only receives stories whose source
 category matches one of the filter values. If omitted, user sees all stories.
 
 This keeps user info OUT of source control. In Vercel/GitHub Actions, paste the JSON
