@@ -296,6 +296,15 @@ def cmd_govt(args) -> int:
             print(f"   {c['url']}")
         return 0
 
+    # Reload the cleaned version from storage (sets converted to lists) so what we
+    # send matches exactly what /govt will later show from cache.
+    try:
+        clean_trending = storage.load_govt_digest()
+        if clean_trending:
+            trending = clean_trending
+    except Exception:
+        pass   # fall back to in-memory clusters; telegram formatter handles sets too
+
     # Send to all users (govt digest is the same for everyone — no per-user filter)
     from src import users as users_mod
     user_list = users_mod.load_users()
