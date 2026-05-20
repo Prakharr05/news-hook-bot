@@ -199,7 +199,9 @@ def send_govt_digest(clusters: list[dict], chat_id: str | None = None) -> None:
         headline = _escape_md(c.get("headline", "")[:160])
         url = c.get("url", "")
         src_count = c.get("source_count", 0)
-        srcs = c.get("sources", [])[:4]
+        # sources may be a set (live from cmd_govt) or a list (loaded from Upstash)
+        raw_srcs = c.get("sources", [])
+        srcs = sorted(raw_srcs)[:4] if isinstance(raw_srcs, (set, frozenset)) else list(raw_srcs)[:4]
         srcs_text = _escape_md(", ".join(srcs))
         fire = "🔥" if src_count >= 5 else "📰"
 
