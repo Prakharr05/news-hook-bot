@@ -1,32 +1,30 @@
 """
 Script generator — turns a single news story into a full EZ Snippet style script.
 
-Uses OpenAI gpt-4o for script generation. Prompt has been heavily tuned with
-calibration rules, 4-template brainstorm (incl. TWIST), and hook/body variety.
+Uses Claude Sonnet 4.6 via Anthropic's API. Claude's instruction-following is markedly
+better than GPT for prompts with hard rules like "max 4/10 if angle is X" — which is
+exactly what the brainstorm rubric needs.
 
-Note: GPT-4o has a known bias toward over-scoring OPPORTUNITY angles even with
-explicit "max 4/10" rules. The reliable workaround is manual template override:
-  /script N insight    /script N twist    /script N tutorial    /script N opportunity
+Prompt is heavily tuned: AUDIENCE CONTEXT (students), calibration rules, 4-template
+brainstorm (incl. TWIST), hook/body variety, PRESERVE SPECIFICS.
 
-When override is used, the LLM respects it. Auto-pick is best-effort.
+Each user uses their own ANTHROPIC_API_KEY (so they pay for their scripts).
+Daily hooks use Claude Haiku 4.5 — see src/llm.py.
 
-Each user uses their own OPENAI_API_KEY (so they pay for their scripts).
-Daily hooks also use OpenAI (gpt-4o-mini) — see src/llm.py.
-
-Cost: ~₹4-6 per script at gpt-4o pricing ($2.50/M input, $10/M output).
+Cost: ~₹6-10 per script at Claude Sonnet 4.6 pricing ($3/M input, $15/M output).
 """
 from __future__ import annotations
 import json
 import logging
 import os
 
-from openai import OpenAI
+from anthropic import Anthropic
 
 logger = logging.getLogger(__name__)
 
-# GPT-4o for scripts (better than gpt-4o-mini at multi-step reasoning).
+# Claude Sonnet 4.6 — strong instruction-following, fits prompts with hard rules.
 # Override with SCRIPT_MODEL env var if you want to test other models.
-MODEL = os.environ.get("SCRIPT_MODEL", "gpt-4o")
+MODEL = os.environ.get("SCRIPT_MODEL", "claude-sonnet-4-6")
 
 SYSTEM_PROMPT = """You write Instagram Reel scripts for Prakhar in the EXACT voice of EZ Snippet (Neeraj Walia) — Indian audience, Hinglish, conversational, warm.
 
@@ -346,19 +344,43 @@ If REJECTING (rare — only when all 4 score below 5):
 }}"""
 
 
-def _build_client(api_key: str | None = None) -> OpenAI:
-    key = api_key or os.environ.get("OPENAI_API_KEY")
+def _build_client(api_key: str | None = None) -> Anthropic:
+    key = api_key or os.environ.get("ANTHROPIC_API_KEY")
     if not key:
-        raise RuntimeError("OPENAI_API_KEY env var not set (or pass api_key arg)")
-    return OpenAI(api_key=key)
+        raise RuntimeError("ANTHROPIC_API_KEY env var not set (or pass api_key arg)")
+    return Anthropic(api_key=key)
 
 
 VALID_TEMPLATES = {"OPPORTUNITY", "INSIGHT", "TUTORIAL", "TWIST"}
 
 
+def _extract_json(text: str) -> dict:
+    """Robust JSON parsing for Claude's output.
+
+    Claude sometimes wraps JSON in ```json ... ``` fences or adds a line of preamble
+    despite instructions. Strip those and parse the JSON object.
+    """
+    text = text.strip()
+    if text.startswith("```"):
+        # Remove the opening fence line (``` or ```json) and any closing fence
+        lines = text.split("\n")
+        if lines[0].startswith("```"):
+            lines = lines[1:]
+        if lines and lines[-1].strip().startswith("```"):
+            lines = lines[:-1]
+        text = "\n".join(lines)
+    text = text.strip()
+    # Defensive: grab from first { to last }
+    start = text.find("{")
+    end = text.rfind("}")
+    if start != -1 and end != -1 and end > start:
+        text = text[start:end + 1]
+    return json.loads(text)
+
+
 def generate_script(
     story: dict,
-    client: OpenAI | None = None,
+    client: Anthropic | None = None,
     api_key: str | None = None,
     template_override: str | None = None,
 ) -> dict:
@@ -390,17 +412,23 @@ def generate_script(
     ) + override_instruction
 
     try:
-        resp = client.chat.completions.create(
+        # Anthropic API: system is a top-level param, not a message role.
+        resp = client.messages.create(
             model=MODEL,
             max_tokens=1500,
             temperature=0.8,
-            response_format={"type": "json_object"},
+            system=SYSTEM_PROMPT,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
         )
-        data = json.loads(resp.choices[0].message.content.strip())
+        # Claude returns content as a list of blocks; grab the first text block.
+        text_content = ""
+        for block in resp.content:
+            if getattr(block, "type", None) == "text":
+                text_content = block.text
+                break
+        data = _extract_json(text_content)
         story["script"] = data
         logger.info("Generated %s script (%d words) for: %s",
                     data.get("chosen_template", data.get("template")),
