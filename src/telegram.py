@@ -182,6 +182,64 @@ def send_more_headlines(headlines: list[dict], chat_id: str | None = None) -> No
     _send_chunks(chunks, chat_id=chat_id)
 
 
+def send_govt_digest(clusters: list[dict], chat_id: str | None = None) -> None:
+    """Send the trending govt-news digest. Each item shows how many outlets cover it."""
+    if not clusters:
+        _send_chunks([_escape_md("No trending govt news right now. Try again later.")], chat_id=chat_id)
+        return
+
+    date_str = datetime.now().strftime("%a, %d %b %Y · %I:%M %p")
+    header = (
+        f"🏛️ *Trending Govt News* — _{_escape_md(date_str)}_\n"
+        f"_Ranked by how many outlets are covering each story_\n"
+    )
+    chunks = [header]
+    current = ""
+    for i, c in enumerate(clusters, 1):
+        headline = _escape_md(c.get("headline", "")[:160])
+        url = c.get("url", "")
+        src_count = c.get("source_count", 0)
+        srcs = c.get("sources", [])[:4]
+        srcs_text = _escape_md(", ".join(srcs))
+        fire = "🔥" if src_count >= 5 else "📰"
+
+        line = (
+            f"\n{i}\\. {fire} [{headline}]({url})\n"
+            f"   _{src_count} outlets covering · {srcs_text}_\n"
+        )
+        if len(chunks[-1]) + len(line) > 3800:
+            chunks.append(line.lstrip())
+        else:
+            chunks[-1] += line
+
+    chunks[-1] += f"\n_Use_ `/govtmore` _for more headlines\\._"
+    _send_chunks(chunks, chat_id=chat_id)
+
+
+def send_govt_more(headlines: list[dict], chat_id: str | None = None) -> None:
+    """Send the recency-ranked govt /more pool — compact title + source + link."""
+    if not headlines:
+        _send_chunks([_escape_md("No additional govt headlines right now.")], chat_id=chat_id)
+        return
+
+    date_str = datetime.now().strftime("%a, %d %b %Y")
+    header = (
+        f"🏛️ *More Govt Headlines* — _{_escape_md(date_str)}_\n"
+        f"_{len(headlines)} recent stories \\(by time\\)_\n"
+    )
+    chunks = [header]
+    for i, h in enumerate(headlines, 1):
+        title = _escape_md(h["title"][:140])
+        source = _escape_md(h.get("source", ""))
+        url = h["url"]
+        line = f"\n{i}\\. [{title}]({url})\n   _{source}_"
+        if len(chunks[-1]) + len(line) > 3800:
+            chunks.append(line.lstrip())
+        else:
+            chunks[-1] += line
+    _send_chunks(chunks, chat_id=chat_id)
+
+
 def send_scripts(stories: list[dict], chat_id: str | None = None) -> None:
     """Send full reel scripts. Optionally to a specific chat (used by the webhook)."""
     if not stories:
