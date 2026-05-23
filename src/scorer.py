@@ -269,6 +269,52 @@ STUDENT_AUDIENCE_KEYWORDS = {
 # Major tech events, product launches, and high-engagement model releases.
 # These help global tech news compete with your Indian-trending focus without
 # dominating it. Designed so a typical I/O/keynote preview scores ~50-70 range.
+# ─── NAMED POWER PLAYERS ───
+# Big tech names + power figures. On their own these are mild; combined with a
+# CONFLICT keyword they signal a high-engagement "clash" story (the kind Prakhar picks).
+POWER_PLAYER_KEYWORDS = {
+    "openai": 4, "anthropic": 4, "google": 3, "meta": 3, "apple": 3,
+    "microsoft": 3, "amazon": 3, "nvidia": 4, "tesla": 3, "spacex": 3,
+    "deepseek": 4, "claude": 4, "chatgpt": 4, "gemini": 4, "grok": 3,
+    "ambani": 5, "adani": 5, "mukesh ambani": 5, "jio": 4, "reliance": 4,
+    "tata": 3, "airtel": 3, "swiggy": 4, "zomato": 4, "paytm": 3,
+    "elon musk": 4, "jensen huang": 4, "sam altman": 4, "sundar pichai": 4,
+    "nvidia": 4, "linkedin": 3, "tiktok": 3, "youtube": 3, "rbi": 4,
+    "npci": 4, "sebi": 4, "cci": 4, "supreme court": 4, "delhi hc": 4,
+    "parliament": 3, "centre": 3, "it ministry": 4, "meity": 4,
+}
+
+# ─── CONFLICT / TENSION MARKERS ───
+# Words that signal a fight, stakes, or structural shift. The "story" in a story.
+CONFLICT_KEYWORDS = {
+    "vs": 4, "versus": 4, "lead over": 5, "beats": 4, "overtakes": 5,
+    "banned": 5, "bans": 5, "ban": 4, "block": 4, "blocked": 4, "blocks": 4,
+    "antitrust": 5, "lawsuit": 5, "sued": 5, "sues": 5, "probe": 4, "fir": 4,
+    "roadblock": 5, "stalls": 4, "stalled": 4, "fails": 4, "failed": 4,
+    "war": 4, "battle": 4, "fight": 3, "clash": 4, "clashes": 4,
+    "crisis": 4, "lost control": 5, "war on": 5, "crackdown": 4,
+    "scrutiny": 4, "flags": 3, "high risk": 4, "threat": 4, "threats": 4,
+    "restrict": 4, "restricts": 4, "default": 3, "scam": 4, "scams": 4,
+    "profitable": 4, "first profitable": 6, "revenue lead": 6,
+    "structural trap": 5, "plateau": 4, "admission": 4,
+    "takes on": 4, "challenge": 3, "challenges": 3, "disrupt": 4,
+}
+
+# ─── GADGET-LAUNCH NOISE PENALTY ───
+# Phone/earbud/wearable spec leaks and launches — low value for Prakhar's content.
+GADGET_KEYWORDS = {
+    "tipped to": -6, "specifications leaked": -6, "specs leaked": -6,
+    "colour options": -6, "color options": -6, "launch timeline": -5,
+    "price range leaked": -6, "spotted on": -5, "gsma database": -6,
+    "launched in india with": -5, "launch date revealed": -5,
+    "key specifications": -5, "expected specifications": -5,
+    "tipster": -6, "leaks key": -5, "reportedly spotted": -5,
+    "earbuds": -4, "smartwatch launch": -4, "music playback": -4,
+    "drivers": -3, "mah battery": -4, "display refresh": -4,
+    "redmi note": -4, "vivo s": -4, "oppo enco": -5, "honor win": -4,
+    "realme": -3, "iqoo": -3, "poco": -3,
+}
+
 EVENT_KEYWORDS = {
     # Annual tech events
     "keynote": 5, "i/o": 6, "io 2026": 5, "wwdc": 5, "re:invent": 4,
@@ -425,6 +471,36 @@ def score(stories: list[dict]) -> list[dict]:
         # Cap to prevent runaway scoring on long articles mentioning many models
         event_boost = min(event_boost, 25)
 
+        # Named-player-conflict boost — Prakhar's favorite story shape is a big-name
+        # clash (OpenAI vs Anthropic, China bans Nvidia, Ambani IPO hits roadblock).
+        # Power player alone = mild. Power player + conflict word = high signal.
+        player_hits = sum(1 for kw in POWER_PLAYER_KEYWORDS if kw in text_lower)
+        conflict_hits = sum(1 for kw in CONFLICT_KEYWORDS if kw in text_lower)
+        player_score = sum(w for kw, w in POWER_PLAYER_KEYWORDS.items() if kw in text_lower)
+        conflict_score = sum(w for kw, w in CONFLICT_KEYWORDS.items() if kw in text_lower)
+        conflict_boost = min(player_score + conflict_score, 22)
+        if player_hits >= 1 and conflict_hits >= 1:
+            conflict_boost += 8   # combo bonus: named player IN a conflict
+
+        # Gadget-launch penalty — phone/earbud spec leaks are noise for this audience.
+        gadget_penalty = 0
+        gadget_hits = 0
+        for kw, w in GADGET_KEYWORDS.items():
+            if kw in text_lower:
+                gadget_penalty += w   # already negative
+                gadget_hits += 1
+        # If a story is clearly a gadget-launch (2+ gadget signals OR a phone brand +
+        # launch/spec word), nuke its score regardless of other boosts. These are the
+        # Vivo/Honor/Redmi/Oppo stories Prakhar never wants.
+        phone_brands = ("vivo", "honor", "redmi", "oppo", "realme", "iqoo", "poco",
+                        "oneplus", "samsung galaxy", "moto ", "infinix", "tecno")
+        launch_words = ("launch", "specifications", "specs", "tipped", "leaked",
+                        "colour", "color option", "price in india", "spotted")
+        has_phone = any(b in text_lower for b in phone_brands)
+        has_launch = any(l in text_lower for l in launch_words)
+        if gadget_hits >= 2 or (has_phone and has_launch):
+            gadget_penalty -= 40   # hard suppression
+
         # Small-deal penalty — funding rounds under $20M or 100 crore are press-release
         # noise (no narrative). Big rounds keep their natural score from crore/billion
         # keywords; this only suppresses the small ones.
@@ -454,7 +530,17 @@ def score(stories: list[dict]) -> list[dict]:
                 # Funding story without a clear amount → probably small/vague, suppress
                 small_deal_penalty = -6
 
-        # Soft tech-angle requirement for trending stories.
+        # Earnings-report penalty — quarterly results are boring number-reporting
+        # (Prakhar skipped both Ixigo Q4 and Lenskart Q4). Light penalty unless there's
+        # a conflict/drama angle.
+        earnings_penalty = 0
+        earnings_markers = ("q1 revenue", "q2 revenue", "q3 revenue", "q4 revenue",
+                            "q1 profit", "q2 profit", "q3 profit", "q4 profit",
+                            "quarterly results", "posts profit", "posts loss",
+                            "clocks profit", "revenue climbs", "profit dips",
+                            "profit rises", "net profit", "ebitda")
+        if any(m in text_lower for m in earnings_markers):
+            earnings_penalty = -10
         # Trending stories need EITHER a viral signal (they're naturally high-engagement)
         # OR a tech keyword (so we can find an angle to teach). Pure entertainment/gossip
         # without either gets penalized.
@@ -466,8 +552,8 @@ def score(stories: list[dict]) -> list[dict]:
 
         s["hook_score"] = (
             title_score * 2 + summary_score + category_bonus
-            + viral_boost + student_boost + event_boost
-            + gossip_penalty + small_deal_penalty
+            + viral_boost + student_boost + event_boost + conflict_boost
+            + gossip_penalty + small_deal_penalty + gadget_penalty + earnings_penalty
         )
         s["matched_keywords"] = title_kws[:5]
         if student_matches:
