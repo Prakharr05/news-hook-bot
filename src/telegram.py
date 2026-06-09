@@ -242,6 +242,75 @@ def send_govt_more(headlines: list[dict], chat_id: str | None = None) -> None:
     _send_chunks(chunks, chat_id=chat_id)
 
 
+def send_ai_digest(stories: list[dict], chat_id: str | None = None) -> None:
+    """Send the AI-creator-profile digest. Shows topic + signals matched."""
+    if not stories:
+        _send_chunks([_escape_md("No AI digest right now. Try again later.")], chat_id=chat_id)
+        return
+
+    topic_emoji = {
+        "model_launch": "🚀",
+        "dev_tool_repo": "🔧",
+        "benchmark_comparison": "📊",
+        "tutorial_workflow": "🎯",
+        "agentic_application": "🤖",
+        "consumer_ai_product": "📱",
+        "funding_with_product": "💰",
+    }
+
+    date_str = datetime.now().strftime("%a, %d %b %Y · %I:%M %p")
+    header = (
+        f"🧠 *AI Creator Digest* — _{_escape_md(date_str)}_\n"
+        f"_Ranked against the AI creator's taste profile_\n"
+    )
+    chunks = [header]
+    for i, s in enumerate(stories, 1):
+        topic = s.get("topic", "")
+        emoji = topic_emoji.get(topic, "🧠")
+        title = _escape_md(s["title"][:140])
+        source = _escape_md(s.get("source", ""))
+        score = s.get("hook_score", 0)
+        url = s["url"]
+        topic_label = _escape_md(topic.replace("_", " ")) if topic else "general"
+
+        line = (
+            f"\n{i}\\. {emoji} [{title}]({url})\n"
+            f"   _{source} · {topic_label} · score {score}_\n"
+        )
+        if len(chunks[-1]) + len(line) > 3800:
+            chunks.append(line.lstrip())
+        else:
+            chunks[-1] += line
+
+    chunks[-1] += f"\n_Use_ `/aimore` _for more AI headlines\\._"
+    _send_chunks(chunks, chat_id=chat_id)
+
+
+def send_ai_more(headlines: list[dict], chat_id: str | None = None) -> None:
+    """Send the AI /more pool — compact format, topic + link."""
+    if not headlines:
+        _send_chunks([_escape_md("No additional AI headlines right now.")], chat_id=chat_id)
+        return
+    date_str = datetime.now().strftime("%a, %d %b %Y")
+    header = (
+        f"🧠 *More AI Headlines* — _{_escape_md(date_str)}_\n"
+        f"_{len(headlines)} additional stories \\(by score\\)_\n"
+    )
+    chunks = [header]
+    for i, h in enumerate(headlines, 1):
+        title = _escape_md(h["title"][:140])
+        source = _escape_md(h.get("source", ""))
+        url = h["url"]
+        topic = h.get("topic", "") or ""
+        topic_text = f" · _{_escape_md(topic.replace('_', ' '))}_" if topic else ""
+        line = f"\n{i}\\. [{title}]({url})\n   _{source}_{topic_text}"
+        if len(chunks[-1]) + len(line) > 3800:
+            chunks.append(line.lstrip())
+        else:
+            chunks[-1] += line
+    _send_chunks(chunks, chat_id=chat_id)
+
+
 def send_scripts(stories: list[dict], chat_id: str | None = None) -> None:
     """Send full reel scripts. Optionally to a specific chat (used by the webhook)."""
     if not stories:

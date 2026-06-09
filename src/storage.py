@@ -26,6 +26,8 @@ DIGEST_KEY = "news_hook_bot:last_digest"
 MORE_POOL_KEY = "news_hook_bot:more_pool"
 GOVT_DIGEST_KEY = "news_hook_bot:govt_digest"
 GOVT_MORE_KEY = "news_hook_bot:govt_more"
+AI_DIGEST_KEY = "news_hook_bot:ai_digest"
+AI_MORE_KEY = "news_hook_bot:ai_more"
 RATE_LIMIT_KEY_PREFIX = "news_hook_bot:ratelimit"
 
 
@@ -163,6 +165,41 @@ def save_govt_more(headlines: list[dict]) -> None:
 
 def load_govt_more() -> list[dict]:
     data = _load_key(GOVT_MORE_KEY)
+    return data if isinstance(data, list) else []
+
+
+def save_ai_digest(stories: list[dict]) -> None:
+    """Save the AI-creator-profile digest (top N)."""
+    # Strip non-serializable bits
+    clean = []
+    for s in stories:
+        clean.append({
+            "title": s.get("title", ""),
+            "url": s.get("url", ""),
+            "source": s.get("source", ""),
+            "summary": s.get("summary", "")[:400],
+            "hook_score": s.get("hook_score", 0),
+            "topic": s.get("topic", ""),
+            "company_hits": s.get("company_hits", []),
+            "vocab_hits": s.get("vocab_hits", []),
+            "published": s.get("published", ""),
+        })
+    _save_key(AI_DIGEST_KEY, clean)
+    logger.info("Saved AI digest to Upstash (%d stories)", len(clean))
+
+
+def load_ai_digest() -> list[dict]:
+    data = _load_key(AI_DIGEST_KEY)
+    return data if isinstance(data, list) else []
+
+
+def save_ai_more(headlines: list[dict]) -> None:
+    _save_key(AI_MORE_KEY, headlines)
+    logger.info("Saved AI /more pool to Upstash (%d headlines)", len(headlines))
+
+
+def load_ai_more() -> list[dict]:
+    data = _load_key(AI_MORE_KEY)
     return data if isinstance(data, list) else []
 
 

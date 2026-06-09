@@ -321,6 +321,53 @@ def cmd_govt(args) -> int:
     return 0
 
 
+def cmd_ai_creator(args) -> int:
+    from src import ai_creator, storage, telegram
+
+    log.info("Fetching AI-focused news for creator-profile scraper…")
+    stories = asyncio.run(ai_creator.fetch_ai_stories())
+    log.info("Fetched %d AI stories", len(stories))
+
+    if not stories:
+        log.warning("No AI stories fetched — all feeds may be down.")
+        return 1
+
+    log.info("Scoring against creator profile…")
+    top, more_pool = ai_creator.rank_for_creator(
+        stories, top_n=args.top, more_n=args.more, min_score=args.min_score
+    )
+    log.info("Top: %d stories | More: %d stories", len(top), len(more_pool))
+    for i, s in enumerate(top, 1):
+        log.info("  #%d [%d] %s (%s) — %s",
+                 i, s["hook_score"], s["title"][:55], s["source"], s.get("topic", ""))
+
+    try:
+        storage.save_ai_digest(top)
+        storage.save_ai_more(more_pool)
+    except Exception as e:
+        log.warning("Could not save AI digest to Upstash: %s", e)
+
+    if args.dry_run:
+        for i, s in enumerate(top, 1):
+            print(f"{i}. [{s['hook_score']}] {s['title']}")
+            print(f"   {s['source']} · {s.get('topic', '')} · {s['url']}")
+        return 0
+
+    from src import users as users_mod
+    user_list = users_mod.load_users()
+    if user_list:
+        for u in user_list:
+            try:
+                telegram.send_ai_digest(top, chat_id=u["chat_id"])
+                log.info("Sent AI digest to %s", u.get("name", "?"))
+            except Exception as e:
+                log.error("Failed to send AI digest to %s: %s", u.get("name", "?"), e)
+    else:
+        telegram.send_ai_digest(top)
+    log.info("Done.")
+    return 0
+
+
 def main() -> int:
     ap = argparse.ArgumentParser(
         description="News hook bot — daily digest + on-demand script generation")
@@ -350,6 +397,12 @@ def main() -> int:
     g.add_argument("--top",       type=int, default=8)
     g.add_argument("--more",      type=int, default=50)
 
+    a = sub.add_parser("ai", help="fetch AI news scored against the AI creator's taste profile")
+    a.add_argument("--dry-run",   action="store_true")
+    a.add_argument("--top",       type=int, default=8)
+    a.add_argument("--more",      type=int, default=50)
+    a.add_argument("--min-score", type=int, default=8)
+
     args = ap.parse_args()
     if args.cmd is None:
         args = ap.parse_args(["digest"] + sys.argv[1:])
@@ -360,6 +413,8 @@ def main() -> int:
         return cmd_script(args)
     elif args.cmd == "govt":
         return cmd_govt(args)
+    elif args.cmd == "ai":
+        return cmd_ai_creator(args)
     return 1
 
 
