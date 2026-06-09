@@ -1,0 +1,199 @@
+{
+  "_meta": {
+    "description": "Taste profile for AI-focused creator. Surfaces news matching the kinds of stories he covers (AI tools, launches, repos, benchmarks). Excludes politics/regulation entirely.",
+    "source": "Derived from 17 reel transcripts",
+    "version": 1
+  },
+
+  "ai_categories_boost": {
+    "model_launch": 8,
+    "dev_tool_repo": 8,
+    "benchmark_comparison": 7,
+    "tutorial_workflow": 6,
+    "agentic_application": 6,
+    "consumer_ai_product": 5,
+    "funding_with_product": 3
+  },
+
+  "ai_companies_he_covers": {
+    "anthropic": 6,
+    "claude": 6,
+    "google": 5,
+    "gemini": 5,
+    "deepmind": 4,
+    "microsoft": 4,
+    "openai": 5,
+    "chatgpt": 4,
+    "gpt": 4,
+    "codex": 5,
+    "nvidia": 4,
+    "meta": 3,
+    "llama": 4,
+    "mistral": 3,
+    "minimax": 4,
+    "deepseek": 4,
+    "qwen": 4,
+    "perplexity": 3,
+    "cursor": 4,
+    "windsurf": 4,
+    "replit": 3,
+    "hugging face": 4,
+    "huggingface": 4,
+    "ollama": 3,
+    "groq": 3,
+    "elevenlabs": 4,
+    "heygen": 3,
+    "runway": 3
+  },
+
+  "vocabulary_signals_positive": {
+    "open-source": 5,
+    "open source": 5,
+    "free": 3,
+    "repo": 5,
+    "repository": 4,
+    "github": 4,
+    "github stars": 5,
+    "open-weight": 5,
+    "open weights": 5,
+    "benchmark": 5,
+    "benchmarks": 5,
+    "outperforms": 4,
+    "beats": 4,
+    "leaderboard": 4,
+    "state of the art": 4,
+    "sota": 4,
+    "context window": 4,
+    "tokens": 3,
+    "frontier": 4,
+    "skill": 3,
+    "plugin": 3,
+    "agent": 5,
+    "agentic": 6,
+    "agents": 5,
+    "multi-agent": 5,
+    "tool calling": 4,
+    "tool-calling": 4,
+    "mcp": 4,
+    "rag": 4,
+    "embedding": 3,
+    "vector": 3,
+    "fine-tune": 4,
+    "fine tuning": 4,
+    "image gen": 4,
+    "image model": 4,
+    "voice clone": 4,
+    "voice cloning": 4,
+    "avatar": 4,
+    "diffusion": 3,
+    "reasoning model": 5,
+    "reasoning": 3,
+    "multimodal": 4,
+    "self-hosted": 3,
+    "local model": 4,
+    "edge ai": 3,
+    "inference": 3,
+    "code generation": 4,
+    "code gen": 4
+  },
+
+  "hook_opener_taxonomy": [
+    {
+      "name": "declarative_launch",
+      "pattern_example": "X just launched / X just dropped / X just unveiled",
+      "frequency_observed": 0.35
+    },
+    {
+      "name": "utility_callout",
+      "pattern_example": "This repo / This tool / This X does Y",
+      "frequency_observed": 0.18
+    },
+    {
+      "name": "tutorial_framing",
+      "pattern_example": "Let me show you exactly how to...",
+      "frequency_observed": 0.18
+    },
+    {
+      "name": "competitive_benchmark",
+      "pattern_example": "X just beat Y in benchmarks",
+      "frequency_observed": 0.12
+    },
+    {
+      "name": "discovery_frame",
+      "pattern_example": "There's a Claude skill / There's a tool that...",
+      "frequency_observed": 0.10
+    },
+    {
+      "name": "narrative_tease",
+      "pattern_example": "What if I told you... / The most important thing...",
+      "frequency_observed": 0.07
+    }
+  ],
+
+  "body_structure_taxonomy": [
+    {
+      "name": "feature_list",
+      "use_when": "product launches with multiple named features",
+      "frequency_observed": 0.24
+    },
+    {
+      "name": "step_by_step",
+      "use_when": "tutorials, tool walkthroughs",
+      "frequency_observed": 0.35
+    },
+    {
+      "name": "single_mechanism_explainer",
+      "use_when": "explaining how one thing works",
+      "frequency_observed": 0.29
+    },
+    {
+      "name": "feature_list_with_benchmarks",
+      "use_when": "model launches with comparisons",
+      "frequency_observed": 0.12
+    }
+  ],
+
+  "cta_pattern": {
+    "format": "Comment [TOPIC_WORD] and I'll send you the link",
+    "topic_word_style": "single uppercase English word tied to the tool/product (e.g., REPO, MD, M3, CODEX, SLOP)",
+    "observed_in_all_17_reels": true
+  },
+
+  "hard_exclusions": [
+    "politics",
+    "election",
+    "regulation",
+    "policy",
+    "safety risk",
+    "ai safety",
+    "ai ethics",
+    "bias",
+    "discrimination",
+    "lawsuit",
+    "antitrust",
+    "court ruling",
+    "supreme court",
+    "parliament",
+    "modi",
+    "biden",
+    "trump",
+    "china rules",
+    "eu act",
+    "deepfake fraud",
+    "scam",
+    "geopolitical"
+  ],
+
+  "soft_negative_signals": {
+    "research paper": -2,
+    "arxiv": -2,
+    "academic": -3,
+    "white paper": -3,
+    "ethical concerns": -4,
+    "controversy": -3,
+    "criticism": -3,
+    "warning": -2,
+    "leaked email": -3,
+    "lawsuit filed": -5
+  }
+}
