@@ -6,6 +6,7 @@
   },
 
   "ai_categories_boost": {
+    "business_move": 8,
     "model_launch": 8,
     "dev_tool_repo": 8,
     "benchmark_comparison": 7,
@@ -43,7 +44,24 @@
     "groq": 3,
     "elevenlabs": 4,
     "heygen": 3,
-    "runway": 3
+    "runway": 3,
+    "apple": 5,
+    "siri": 5,
+    "ios": 4,
+    "iphone": 3,
+    "macbook": 3,
+    "amazon": 3,
+    "alexa": 4,
+    "echo": 3,
+    "samsung": 3,
+    "tesla": 3,
+    "xai": 4,
+    "grok": 4,
+    "x ai": 4,
+    "tencent": 3,
+    "alibaba": 3,
+    "bytedance": 3,
+    "tiktok": 3
   },
 
   "vocabulary_signals_positive": {

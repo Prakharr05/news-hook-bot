@@ -249,6 +249,7 @@ def send_ai_digest(stories: list[dict], chat_id: str | None = None) -> None:
         return
 
     topic_emoji = {
+        "business_move": "🤝",
         "model_launch": "🚀",
         "dev_tool_repo": "🔧",
         "benchmark_comparison": "📊",

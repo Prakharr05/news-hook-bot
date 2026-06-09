@@ -143,39 +143,110 @@ async def fetch_ai_stories() -> list[dict]:
 
 # ─── PROFILE-BASED SCORING ──────────────────────────────────────────────────
 
+def _has(text: str, phrases: list[str]) -> bool:
+    """Word-boundary aware substring check.
+
+    Multi-word phrases match as substring. Single short words ('repo', 'agent') match
+    with word boundaries so 'report' doesn't trigger 'repo'.
+    """
+    for p in phrases:
+        if " " in p or "-" in p:
+            if p in text:
+                return True
+        else:
+            # word-boundary regex for single words
+            if re.search(r"\b" + re.escape(p) + r"\b", text):
+                return True
+    return False
+
+
 def _detect_topic(text_lower: str) -> str | None:
     """Categorize a story into one of the creator's topic buckets.
 
     Returns the topic key (matches ai_categories_boost in the profile) or None.
+    Word-boundary matching prevents 'report' from triggering 'repo'.
     """
     # Order matters: more specific patterns first.
-    if any(p in text_lower for p in ("repo", "github", "open-source", "open source",
-                                      "now open source", "released on github",
-                                      "stars on github")):
+
+    # Business move: partnerships, acquisitions, layoffs, leadership shifts among
+    # AI companies. This is the "Apple Siri × Gemini" shape — concrete corporate news.
+    if _has(text_lower, [
+        "partners with", "partnership with", "partnering with", "partnering up",
+        "teams up with", "team up with", "joins forces", "deal with",
+        "integrates with", "integration with",
+        "acquires", "acquired", "to acquire", "acquisition",
+        "layoffs", "laid off", "fires", "fired", "cuts jobs", "job cuts",
+        "ipo", "files for ipo", "going public", "stock market",
+        "ceo steps down", "ceo resigns", "ceo joins", "hired as ceo",
+        "valuation hits", "valued at", "deal worth",
+        "files antitrust", "settles with", "merger",
+    ]):
+        return "business_move"
+
+    if _has(text_lower, [
+        "repo", "github stars", "open-source", "open source",
+        "now open source", "released on github", "stars on github",
+    ]):
         return "dev_tool_repo"
-    if any(p in text_lower for p in ("benchmark", "benchmarks", "outperforms",
-                                      "beats gpt", "beats claude", "swe bench",
-                                      "leaderboard", "state of the art")):
+
+    if _has(text_lower, [
+        "benchmark", "benchmarks", "outperforms", "beats gpt", "beats claude",
+        "swe bench", "leaderboard", "state of the art", "sota",
+    ]):
         return "benchmark_comparison"
-    if any(p in text_lower for p in ("launches", "launched", "unveiled", "announces",
-                                      "releases", "released", "introduces", "introducing",
-                                      "drops new", "new model", "ships")):
+
+    if _has(text_lower, [
+        "launches", "launched", "unveiled", "announces", "releases", "released",
+        "introduces", "introducing", "drops new", "new model", "ships",
+        "available now", "rolling out",
+    ]):
         return "model_launch"
-    if any(p in text_lower for p in ("how to use", "tutorial", "step-by-step",
-                                      "step by step", "guide to", "build with",
-                                      "workflow")):
+
+    if _has(text_lower, [
+        "how to use", "tutorial", "step-by-step", "step by step",
+        "guide to", "build with", "workflow", "how i built",
+    ]):
         return "tutorial_workflow"
-    if any(p in text_lower for p in ("agent", "agentic", "agents", "multi-agent",
-                                      "autonomous")):
+
+    if _has(text_lower, [
+        "agent", "agentic", "agents", "multi-agent", "autonomous",
+    ]):
         return "agentic_application"
-    if any(p in text_lower for p in ("consumer", "$", "rs ", "price", "device", "gadget")):
-        # Only consumer-AI if it's clearly an AI product (not just any consumer item)
-        if any(p in text_lower for p in ("ai", "llm", "artificial intelligence")):
+
+    if _has(text_lower, ["consumer", "device", "gadget"]):
+        if _has(text_lower, ["ai", "llm", "artificial intelligence"]):
             return "consumer_ai_product"
-    if any(p in text_lower for p in ("raised", "funding round", "series a", "series b",
-                                      "series c", "valuation")):
+
+    if _has(text_lower, [
+        "raised", "funding round", "series a", "series b", "series c", "valuation",
+    ]):
         return "funding_with_product"
+
     return None
+
+
+# Headline shapes we want to PENALIZE (newsletter analyses, vague upcoming things)
+_ANALYSIS_PATTERNS = [
+    r"^frontier radar",
+    r"#\d+\b",                          # newsletter issue numbers
+    r"\b(matters more|more than scale)\b",
+    r"\bproves (that|how|why)\b",
+    r"\bhow .* is (turning|changing|reshaping|disrupting)\b",
+    r"\bpreps (overhaul|launch|update)\b",
+    r"\bcould (change|disrupt|transform)\b.*\bif\b",
+    r"\b(uncanny valley|the curve|the moment)\b",
+    r"\b(deep dive|weekly digest|monthly roundup)\b",
+    r"\bwhy .* matters\b",
+]
+
+
+def _is_analysis_shape(text_lower: str) -> bool:
+    """Detect newsletter / analysis / vague-future headlines that Prakhar skipped."""
+    for p in _ANALYSIS_PATTERNS:
+        if re.search(p, text_lower):
+            return True
+    return False
+
 
 
 def score_with_profile(stories: list[dict], profile: dict | None = None) -> list[dict]:
@@ -239,12 +310,25 @@ def score_with_profile(stories: list[dict], profile: dict | None = None) -> list
             if kw in text:
                 neg_penalty += w   # already negative
 
+        # 5b. Newsletter/analysis-shape penalty — headlines like "Frontier Radar #3",
+        # "How X is reshaping Y", "X proves more than scale" — Prakhar consistently
+        # skips these because they're analyses, not concrete product news.
+        if _is_analysis_shape(text):
+            neg_penalty -= 12
+
         # 6. Title-vs-summary weighting: title hits matter 2x more than summary hits
         # (we already combined them, so re-check the title alone for an extra boost)
         title_lower = s["title"].lower()
         title_extra = sum(w for kw, w in companies.items() if kw in title_lower) // 2
         title_extra += sum(w for kw, w in vocab.items() if kw in title_lower) // 2
         title_extra = min(title_extra, 10)
+
+        # 6b. Multi-company-in-title boost — the "Apple × Gemini" or "OpenAI × Microsoft"
+        # shape is high-signal (concrete deal/conflict between named players). Counts
+        # how many distinct companies appear in the title alone.
+        company_words_in_title = sum(1 for kw in companies if kw in title_lower)
+        if company_words_in_title >= 2:
+            title_extra += 8
 
         # 7. Source-tier boost
         # ai_lab sources (Anthropic blog, OpenAI blog) get priority — they're "primary news"
