@@ -44,6 +44,9 @@ HELP_TEXT = (
     "*Govt / trending:*\n"
     "`/govt` — Trending govt news \\(ranked by outlet coverage\\)\n"
     "`/govtmore` — More govt headlines \\(by recency\\)\n\n"
+    "*AI creator profile:*\n"
+    "`/aidigest` — AI news ranked against the AI creator's taste profile\n"
+    "`/aimore` — More AI headlines\n\n"
     "`/help` — Show this message\n\n"
     "_Tech digest arrives daily at 8:30 AM IST\\._"
 )
@@ -101,6 +104,22 @@ def handle_command(text: str, user: dict) -> None:
             _send_text(chat_id, "No additional govt headlines cached yet\\.")
             return
         telegram.send_govt_more(headlines, chat_id=chat_id)
+        return
+
+    if text == "/aidigest":
+        stories = storage.load_ai_digest()
+        if not stories:
+            _send_text(chat_id, "No AI digest cached yet\\. Run `python run.py ai` to populate\\.")
+            return
+        telegram.send_ai_digest(stories, chat_id=chat_id)
+        return
+
+    if text == "/aimore":
+        headlines = storage.load_ai_more()
+        if not headlines:
+            _send_text(chat_id, "No additional AI headlines cached yet\\.")
+            return
+        telegram.send_ai_more(headlines, chat_id=chat_id)
         return
 
     if text.startswith("/script"):
